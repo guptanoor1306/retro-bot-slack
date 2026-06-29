@@ -102,30 +102,33 @@ async function appendRow(tabName, headers, values) {
   logInfo(`Appended row to ${tabName}`, { firstCol: values[0] });
 }
 
-async function ensureTabExists(tabName) {
-  const sheets = await getSheets();
-  const spreadsheetId = getSheetId();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
-  const exists = meta.data.sheets?.some((s) => s.properties?.title === tabName);
-  if (!exists) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
-    });
-    logInfo(`Created sheet tab: ${tabName}`);
+async function withSheetsRetry(fn, { maxAttempts = 6, baseDelayMs = 10000 } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const msg = error.message || '';
+      const isQuota = msg.includes('Quota exceeded') || error.code === 429;
+      if (!isQuota || attempt === maxAttempts) throw error;
+      const delay = baseDelayMs * attempt;
+      logInfo(`Sheets API quota hit, retrying in ${delay / 1000}s (${attempt}/${maxAttempts})`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 }
 
-async function syncTabHeaders(tab, requiredHeaders) {
-  await ensureTabExists(tab);
-  const sheets = await getSheets();
-  const spreadsheetId = getSheetId();
-
-  const res = await sheets.spreadsheets.values.get({
+async function ensureTabExists(tabName, existingTabs, sheets, spreadsheetId) {
+  if (existingTabs.has(tabName)) return;
+  await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    range: `${tab}!1:1`,
+    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
   });
-  const existing = res.data.values?.[0] || [];
+  existingTabs.add(tabName);
+  logInfo(`Created sheet tab: ${tabName}`);
+}
+
+async function syncTabHeadersFromBatch(tab, requiredHeaders, headerRow, sheets, spreadsheetId) {
+  const existing = headerRow || [];
 
   if (existing.length === 0) {
     await sheets.spreadsheets.values.update({
@@ -153,9 +156,62 @@ async function syncTabHeaders(tab, requiredHeaders) {
 }
 
 async function ensureHeaders() {
-  await syncTabHeaders(RETROS_TAB, RETROS_HEADERS);
-  await syncTabHeaders(RESPONSES_TAB, RESPONSES_HEADERS);
-  await syncTabHeaders(MAPPINGS_TAB, MAPPINGS_HEADERS);
+  const sheets = await getSheets();
+  const spreadsheetId = getSheetId();
+  const tabConfigs = [
+    [RETROS_TAB, RETROS_HEADERS],
+    [RESPONSES_TAB, RESPONSES_HEADERS],
+    [MAPPINGS_TAB, MAPPINGS_HEADERS],
+  ];
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
+  const existingTabs = new Set(meta.data.sheets?.map((s) => s.properties?.title) || []);
+
+  const missingTabs = tabConfigs.filter(([tab]) => !existingTabs.has(tab));
+  if (missingTabs.length > 0) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: missingTabs.map(([tab]) => ({
+          addSheet: { properties: { title: tab } },
+        })),
+      },
+    });
+    missingTabs.forEach(([tab]) => existingTabs.add(tab));
+    logInfo(`Created sheet tabs: ${missingTabs.map(([t]) => t).join(', ')}`);
+  }
+
+  const batchRes = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId,
+    ranges: tabConfigs.map(([tab]) => `${tab}!1:1`),
+  });
+
+  for (let i = 0; i < tabConfigs.length; i++) {
+    const [tab, headers] = tabConfigs[i];
+    const headerRow = batchRes.data.valueRanges?.[i]?.values?.[0];
+    await syncTabHeadersFromBatch(tab, headers, headerRow, sheets, spreadsheetId);
+  }
+}
+
+/** @deprecated use ensureHeaders — kept for any direct callers */
+async function ensureTabExistsLegacy(tabName) {
+  const sheets = await getSheets();
+  const spreadsheetId = getSheetId();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
+  const existingTabs = new Set(meta.data.sheets?.map((s) => s.properties?.title) || []);
+  await ensureTabExists(tabName, existingTabs, sheets, spreadsheetId);
+}
+
+async function syncTabHeaders(tab, requiredHeaders) {
+  await ensureTabExistsLegacy(tab);
+  const sheets = await getSheets();
+  const spreadsheetId = getSheetId();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tab}!1:1`,
+  });
+  return syncTabHeadersFromBatch(tab, requiredHeaders, res.data.values?.[0], sheets, spreadsheetId);
 }
 
 async function createRetro(retro) {
@@ -283,7 +339,7 @@ async function getPremierMappingForRetro(retroId) {
 
 async function initSheets() {
   try {
-    await ensureHeaders();
+    await withSheetsRetry(() => ensureHeaders());
     logInfo('Google Sheets initialized');
   } catch (error) {
     logError('initSheets', error);
