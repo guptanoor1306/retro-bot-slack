@@ -266,10 +266,9 @@ Deploy → **Settings → Generate Domain** for the bot service if using HTTP mo
 ### 3. Service B — Insights dashboard
 
 1. In the same Railway project: **+ New** → **GitHub Repo** → same `retro-bot-slack` repo.
-2. **Settings → Deploy → Custom Start Command:** `npm run insights`
-3. Or link config file: copy `railway.insights.toml` → rename to `railway.toml` on a branch, or paste its `startCommand` in the UI.
-4. **Settings → Generate Domain** → open the URL in your browser.
-5. Add variables (shared with bot service, or use **Shared Variables** at project level):
+2. In **Variables**, set **`APP_MODE=insights`** (this is how the insights service knows to run the dashboard instead of the bot).
+3. **Settings → Generate Domain** → open the URL in your browser.
+4. Add variables (shared with bot service, or use **Shared Variables** at project level):
 
 | Variable | Required |
 |----------|----------|
