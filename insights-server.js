@@ -33,6 +33,7 @@ function mapRetro(r) {
     video_type: r.video_type,
     video_type_label: formatVideoType(r.video_type),
     release_date: r.release_date,
+    completed_at: r.completed_at,
     status: r.status,
     channel_id: r.channel_id,
     thread_ts: r.thread_ts,
@@ -64,10 +65,17 @@ app.get('/api/premier/sessions', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/analyze/retros', asyncHandler(async (req, res) => {
-  const { ip_name: ipName, video_type: videoType = '' } = req.body;
-  if (!ipName) return res.status(400).json({ error: 'ip_name is required' });
+  const { ip_name: ipName, video_type: videoType = '', retro_ids: retroIds = [] } = req.body;
 
-  const comparison = await compareRetrosByIp(ipName, videoType);
+  let comparison;
+  if (retroIds.length === 2 && retroIds[0] && retroIds[1]) {
+    comparison = await compareTwoRetros(retroIds[0], retroIds[1]);
+  } else if (ipName) {
+    comparison = await compareRetrosByIp(ipName, videoType);
+  } else {
+    return res.status(400).json({ error: 'ip_name or retro_ids required' });
+  }
+
   const analysis = await analyzeRetroComparison(comparison);
 
   res.json({

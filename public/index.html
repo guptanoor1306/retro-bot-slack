@@ -23,7 +23,7 @@
     <section class="panel active" data-mode="retros">
       <div class="card">
         <h2>Compare Retros</h2>
-        <p class="desc">Pick an IP — compares the two most recent <strong>completed</strong> retros (optionally filter by type).</p>
+        <p class="desc">Pick an IP, then choose two <strong>completed</strong> retros to compare (optionally filter by type).</p>
         <div class="grid-2">
           <div class="field">
             <label for="ipFilter">IP</label>
@@ -38,8 +38,15 @@
               <option value="podcast">Podcast</option>
             </select>
           </div>
+          <div class="field">
+            <label for="retroOlder">Retro A (older)</label>
+            <select id="retroOlder"><option value="">Select IP first</option></select>
+          </div>
+          <div class="field">
+            <label for="retroNewer">Retro B (newer)</label>
+            <select id="retroNewer"><option value="">Select IP first</option></select>
+          </div>
         </div>
-        <div id="retroPreview" class="info-bar">Select an IP to preview comparison pair.</div>
         <div class="actions">
           <button id="analyzeBtn" class="btn btn-primary">Run analysis</button>
         </div>

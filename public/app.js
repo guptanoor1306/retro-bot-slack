@@ -49,7 +49,6 @@ async function loadData() {
 
     fillRetroSelects();
     fillPremierSelects();
-    updateRetroPreview();
   } catch (e) {
     $('actionError').textContent = e.message;
   }
@@ -78,12 +77,49 @@ function premierOptions() {
     : '<option value="">No Premier sessions — check .env</option>';
 }
 
-function fillRetroSelects() {
+function retroOptionLabel(r) {
+  const date = (r.release_date || '').slice(0, 10);
+  return `${r.video_name} · ${r.video_type_label || '?'} (${date})`;
+}
+
+function completedRetrosForFilter() {
   const ip = $('ipFilter')?.value;
-  const completed = retroOptions({ ip, status: 'complete' });
+  const type = $('typeFilter')?.value;
+  if (!ip) return [];
+  return state.retros
+    .filter(
+      (r) => r.ip_name === ip && r.status === 'complete' && (!type || r.video_type === type),
+    )
+    .sort((a, b) =>
+      (b.completed_at || b.release_date).localeCompare(a.completed_at || a.release_date),
+    );
+}
+
+function fillCompareRetroSelects() {
+  const retros = completedRetrosForFilter();
+  const opts = retros.length
+    ? retros.map((r) => `<option value="${r.retro_id}">${retroOptionLabel(r)}</option>`).join('')
+    : '<option value="">No completed retros</option>';
+
+  const olderEl = $('retroOlder');
+  const newerEl = $('retroNewer');
+  if (!olderEl || !newerEl) return;
+
+  const prevOlder = olderEl.value;
+  const prevNewer = newerEl.value;
+
+  olderEl.innerHTML = opts;
+  newerEl.innerHTML = opts;
+
+  if (retros.length >= 2) {
+    olderEl.value = retros.some((r) => r.retro_id === prevOlder) ? prevOlder : retros[1].retro_id;
+    newerEl.value = retros.some((r) => r.retro_id === prevNewer) ? prevNewer : retros[0].retro_id;
+  }
+}
+
+function fillRetroSelects() {
+  fillCompareRetroSelects();
   const all = retroOptions();
-  if ($('retroOlder')) $('retroOlder').innerHTML = completed || '<option value="">No completed retros</option>';
-  if ($('retroNewer')) $('retroNewer').innerHTML = completed || '<option value="">No completed retros</option>';
   if ($('combinedRetroA')) $('combinedRetroA').innerHTML = all || '<option value="">No retros</option>';
   if ($('combinedRetroB')) $('combinedRetroB').innerHTML = all || '<option value="">No retros</option>';
 }
@@ -95,22 +131,19 @@ function fillPremierSelects() {
   });
 }
 
-function updateRetroPreview() {
-  const ip = $('ipFilter').value;
-  const type = $('typeFilter').value;
-  const completed = state.retros.filter(
-    (r) => r.ip_name === ip && r.status === 'complete' && (!type || r.video_type === type),
-  );
-  const el = $('retroPreview');
-  if (completed.length < 2) {
-    el.innerHTML = `<span class="badge">${completed.length} completed retro(s) — need 2+ to compare</span>`;
-    return;
-  }
-  el.innerHTML = `<span class="badge ok">Will compare:</span> <strong>${completed[1]?.video_name}</strong> → <strong>${completed[0]?.video_name}</strong>`;
-}
-
 async function runRetroCompare() {
   $('actionError').textContent = '';
+  const olderId = $('retroOlder').value;
+  const newerId = $('retroNewer').value;
+  if (!olderId || !newerId) {
+    $('actionError').textContent = 'Select both retros to compare.';
+    return;
+  }
+  if (olderId === newerId) {
+    $('actionError').textContent = 'Pick two different retros.';
+    return;
+  }
+
   $('analyzeBtn').disabled = true;
   try {
     const res = await fetch('/api/analyze/retros', {
@@ -119,6 +152,7 @@ async function runRetroCompare() {
       body: JSON.stringify({
         ip_name: $('ipFilter').value,
         video_type: $('typeFilter').value,
+        retro_ids: [olderId, newerId],
       }),
     });
     const data = await res.json();
@@ -218,9 +252,10 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 $('ipFilter')?.addEventListener('change', () => {
   fillRetroSelects();
-  updateRetroPreview();
 });
-$('typeFilter')?.addEventListener('change', updateRetroPreview);
+$('typeFilter')?.addEventListener('change', () => {
+  fillCompareRetroSelects();
+});
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);
 $('analyzeCombinedBtn')?.addEventListener('click', runCombinedCompare);
