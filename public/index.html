@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retro Insights</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Retro Insights</h1>
+      <p>Compare learning across retros, Premier feedback, or both — then publish or copy results.</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-mode="retros">① Compare Retros</button>
+      <button class="tab" data-mode="combined">② Retro + Premier</button>
+      <button class="tab" data-mode="premiers">③ Compare Premier</button>
+    </nav>
+
+    <!-- Mode 1: Compare Retros by IP -->
+    <section class="panel active" data-mode="retros">
+      <div class="card">
+        <h2>Compare Retros</h2>
+        <p class="desc">Pick an IP — compares the two most recent <strong>completed</strong> retros (optionally filter by type).</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="ipFilter">IP</label>
+            <select id="ipFilter"><option value="">Loading…</option></select>
+          </div>
+          <div class="field">
+            <label for="typeFilter">Type (optional)</label>
+            <select id="typeFilter">
+              <option value="">All types</option>
+              <option value="long_form">Long-form</option>
+              <option value="shorts_reels">Shorts/Reels</option>
+              <option value="podcast">Podcast</option>
+            </select>
+          </div>
+        </div>
+        <div id="retroPreview" class="info-bar">Select an IP to preview comparison pair.</div>
+        <div class="actions">
+          <button id="analyzeBtn" class="btn btn-primary">Run analysis</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mode 2: Retro + Premier combined -->
+    <section class="panel" data-mode="combined">
+      <div class="card">
+        <h2>Retro + Premier Combined</h2>
+        <p class="desc">Select 2 retros (older → newer) and 2 Premier sessions to check if learnings were implemented.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="combinedRetroA">Retro A (older)</label>
+            <select id="combinedRetroA"></select>
+          </div>
+          <div class="field">
+            <label for="combinedRetroB">Retro B (newer)</label>
+            <select id="combinedRetroB"></select>
+          </div>
+          <div class="field">
+            <label for="combinedPremierA">Premier A (older)</label>
+            <select id="combinedPremierA"></select>
+          </div>
+          <div class="field">
+            <label for="combinedPremierB">Premier B (newer)</label>
+            <select id="combinedPremierB"></select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mode 3: Compare Premier only -->
+    <section class="panel" data-mode="premiers">
+      <div class="card">
+        <h2>Compare Premier Feedback</h2>
+        <p class="desc">Compare reviewer feedback across two Premier sessions — copy results (no Slack publish).</p>
+        <div class="grid-2">
+          <div class="field">
+            <label for="premierA">Premier session A</label>
+            <select id="premierA"></select>
+          </div>
+          <div class="field">
+            <label for="premierB">Premier session B</label>
+            <select id="premierB"></select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="actionError" class="error"></div>
+
+    <div class="card result-card">
+      <h2>Insights</h2>
+      <p class="desc">Structured comparison always shown. Add a valid <code>OPENAI_API_KEY</code> in <code>.env</code> for AI verdict (optional).</p>
+      <textarea id="analysis" placeholder="Run an analysis to see insights here…"></textarea>
+      <div class="actions">
+        <button id="publishBtn" class="btn btn-success" disabled>Publish to Slack thread</button>
+        <button id="copyBtn" class="btn btn-secondary" style="display:none">Copy insights</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

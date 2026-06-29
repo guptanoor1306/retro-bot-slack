@@ -1,0 +1,23 @@
+{
+  "name": "retro-bot",
+  "version": "1.0.0",
+  "description": "Slack Retro Bot for video production team retrospectives",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "open-retros": "node scripts/open-retros.js",
+    "insights": "node insights-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.22.2",
+    "googleapis": "^144.0.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^11.0.3"
+  }
+}
