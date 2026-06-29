@@ -16,7 +16,7 @@ const { publishInsightsToThread } = require('./src/insights/slack');
 const { logError, logInfo, formatVideoType } = require('./src/utils');
 
 const app = express();
-const PORT = process.env.INSIGHTS_PORT || 4000;
+const PORT = process.env.PORT || process.env.INSIGHTS_PORT || 4000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -111,8 +111,8 @@ app.use((err, _req, res, _next) => {
 
 async function main() {
   await initSheets();
-  app.listen(PORT, () => {
-    logInfo(`Insights dashboard at http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    logInfo(`Insights dashboard listening on port ${PORT}`);
   });
 }
 

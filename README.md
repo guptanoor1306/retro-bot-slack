@@ -229,17 +229,85 @@ Mappings are saved to the **PremierMappings** sheet tab.
 | `open` | Thread live, collecting responses |
 | `complete` | All 4 roles submitted |
 
-## Deployment (cost-efficient)
+## Deployment on Railway
+
+Run **two services** from the same GitHub repo: the Slack bot (always-on) and the insights dashboard (web UI).
+
+### 1. Create project
+
+1. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
+2. Select `guptanoor1306/retro-bot-slack`.
+3. Railway auto-detects Node and runs `npm start` (uses `railway.toml`).
+
+### 2. Service A — Slack bot
+
+In **Variables**, add every value from your local `.env`:
+
+| Variable | Notes |
+|----------|-------|
+| `SLACK_BOT_TOKEN` | Bot OAuth token |
+| `SLACK_SIGNING_SECRET` | From Slack app Basic Info |
+| `SLACK_APP_TOKEN` | Required if `USE_SOCKET_MODE=true` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Paste entire JSON **on one line** |
+| `GOOGLE_SHEET_ID` | Spreadsheet ID |
+| `RETRO_CHANNEL_ID` | `#video-retros` channel ID |
+| `USE_SOCKET_MODE` | `true` (recommended — no public URL needed) |
+
+**Socket Mode (recommended):** keep `USE_SOCKET_MODE=true`. Slack talks over WebSocket; you do not need to set Request URLs to Railway.
+
+**HTTP mode (optional):** set `USE_SOCKET_MODE=false`. Railway sets `PORT` automatically. In Slack app settings, set Request URL and Interactivity URL to:
+
+```
+https://<your-bot-service>.up.railway.app/slack/events
+```
+
+Deploy → **Settings → Generate Domain** for the bot service if using HTTP mode.
+
+### 3. Service B — Insights dashboard
+
+1. In the same Railway project: **+ New** → **GitHub Repo** → same `retro-bot-slack` repo.
+2. **Settings → Deploy → Custom Start Command:** `npm run insights`
+3. Or link config file: copy `railway.insights.toml` → rename to `railway.toml` on a branch, or paste its `startCommand` in the UI.
+4. **Settings → Generate Domain** → open the URL in your browser.
+5. Add variables (shared with bot service, or use **Shared Variables** at project level):
+
+| Variable | Required |
+|----------|----------|
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Yes |
+| `GOOGLE_SHEET_ID` | Yes |
+| `SLACK_BOT_TOKEN` | Yes (publish to thread) |
+| `OPENAI_API_KEY` | Optional |
+| `OPENAI_MODEL` | Optional (`gpt-4o-mini`) |
+| `PREMIER_API_URL` | If using Premier compare |
+| `PREMIER_EMAIL` / `PREMIER_PASSWORD` | If using Premier compare |
+
+Railway injects `PORT`; the insights server uses it automatically.
+
+### 4. Verify
+
+| Check | How |
+|-------|-----|
+| Bot running | Railway logs show `Retro Bot running in Socket Mode` |
+| `/retro` works | Run slash command in Slack |
+| Insights UI | Open generated Railway domain |
+| Scheduler | Logs at 10 AM IST, or `npm run open-retros` locally against prod sheet |
+
+### Cost
+
+Railway Hobby plan (~$5/mo) covers both small always-on services. Free trial credits may apply for new accounts.
+
+## Deployment (other options)
 
 The bot needs a **single always-on process** for the daily cron (no paid scheduler required).
 
 | Option | Cost | Notes |
 |--------|------|-------|
-| Railway / Render free tier | $0–5/mo | Simple Node deploy |
+| **Railway** | ~$5/mo | See section above — recommended |
+| Render free tier | $0–7/mo | Similar two-service setup |
 | Fly.io | ~$0 | Small VM, set `USE_SOCKET_MODE=false` + public URL |
 | Local machine + Socket Mode | $0 | Fine for testing |
 
-Use HTTP mode in production (`USE_SOCKET_MODE=false`) with a public HTTPS URL for Slack events.
+Use HTTP mode in production (`USE_SOCKET_MODE=false`) with a public HTTPS URL for Slack events, unless using Socket Mode.
 
 ## Future: Retro Insights (week-on-week)
 
