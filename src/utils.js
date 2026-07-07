@@ -22,6 +22,10 @@ const VIDEO_TYPES = {
   podcast: 'Podcast',
 };
 
+const REMINDER_INTERVAL_HOURS = 12;
+const MAX_REMINDER_ROUNDS = 5;
+const CREATOR_ESCALATION_HOURS = 60;
+
 function addDaysIST(dateStr, days) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -103,6 +107,9 @@ module.exports = {
   ROLE_LABELS,
   ROLE_SLACK_ID_FIELDS,
   VIDEO_TYPES,
+  REMINDER_INTERVAL_HOURS,
+  MAX_REMINDER_ROUNDS,
+  CREATOR_ESCALATION_HOURS,
   generateId,
   todayIST,
   addDaysIST,

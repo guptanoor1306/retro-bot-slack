@@ -100,6 +100,8 @@ function registerHandlers(app) {
         created_at: nowISO(),
         opened_at: '',
         completed_at: '',
+        reminder_count: '0',
+        creator_notified_at: '',
       };
 
       await createRetro(retro);
@@ -378,6 +380,8 @@ async function openRetro(client, retro, openTrigger = 'scheduled') {
     channel_id: channelId,
     thread_ts: normalizeSlackTs(postResult.ts),
     opened_at: nowISO(),
+    reminder_count: '0',
+    creator_notified_at: '',
   });
 
   for (const role of ROLES) {

@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { todayIST, logInfo, logError } = require('./utils');
 const { getRetrosDueForAutoOpen } = require('./sheets');
+const { processRetroReminders } = require('./reminders');
 
 function startScheduler(openRetroFn) {
   cron.schedule(
@@ -30,4 +31,17 @@ function startScheduler(openRetroFn) {
   logInfo('Scheduler started — auto-opens retros at 10:00 AM IST the day after release');
 }
 
-module.exports = { startScheduler };
+function startReminderScheduler(client) {
+  cron.schedule('0 * * * *', async () => {
+    logInfo('Reminder scheduler running');
+    try {
+      await processRetroReminders(client);
+    } catch (error) {
+      logError('reminder scheduler', error);
+    }
+  });
+
+  logInfo('Reminder scheduler started — checks hourly for 12h DM reminders and 60h creator escalation');
+}
+
+module.exports = { startScheduler, startReminderScheduler };

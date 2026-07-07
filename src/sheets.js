@@ -9,7 +9,7 @@ const RETROS_HEADERS = [
   'retro_id', 'video_name', 'ip_name', 'video_type', 'release_date',
   'writer_slack_id', 'editor_slack_id', 'designer_slack_id', 'sound_slack_id',
   'created_by', 'status', 'open_trigger', 'channel_id', 'thread_ts',
-  'created_at', 'opened_at', 'completed_at',
+  'created_at', 'opened_at', 'completed_at', 'reminder_count', 'creator_notified_at',
 ];
 
 const RESPONSES_HEADERS = [
@@ -248,6 +248,11 @@ async function getRetrosByIp(ipName, { videoType, status } = {}) {
     .sort((a, b) => (b.completed_at || b.release_date).localeCompare(a.completed_at || a.release_date));
 }
 
+async function getOpenRetros() {
+  const rows = await readTab(RETROS_TAB, RETROS_HEADERS);
+  return rows.filter((r) => r.status === 'open');
+}
+
 /** Retros due to auto-open today: release was yesterday, still scheduled. */
 async function getRetrosDueForAutoOpen(date = todayIST()) {
   const rows = await readTab(RETROS_TAB, RETROS_HEADERS);
@@ -358,6 +363,7 @@ module.exports = {
   getUniqueIpNames,
   getRetrosByIp,
   getRetrosDueForAutoOpen,
+  getOpenRetros,
   getCompletedRetrosByIpAndType,
   updateRetro,
   createResponse,

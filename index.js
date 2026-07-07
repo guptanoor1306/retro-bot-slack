@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env'), overri
 
 const { initSheets } = require('./src/sheets');
 const { createSlackApp, createOpenRetroHandler } = require('./src/slackApp');
-const { startScheduler } = require('./src/scheduler');
+const { startScheduler, startReminderScheduler } = require('./src/scheduler');
 const { logError, logInfo } = require('./src/utils');
 
 async function main() {
@@ -29,6 +29,7 @@ async function main() {
   const openRetro = createOpenRetroHandler(app);
 
   startScheduler(openRetro);
+  startReminderScheduler(app.client);
 
   const port = process.env.PORT || 3000;
 

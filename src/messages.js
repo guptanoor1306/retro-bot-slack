@@ -1,4 +1,14 @@
-const { ROLES, ROLE_LABELS, formatVideoType, retroOpenDate } = require('./utils');
+const { ROLES, ROLE_LABELS, ROLE_SLACK_ID_FIELDS, formatVideoType, retroOpenDate, MAX_REMINDER_ROUNDS } = require('./utils');
+
+function buildAssigneesText(retro) {
+  const lines = ROLES.map((role) => {
+    const userId = retro[ROLE_SLACK_ID_FIELDS[role]];
+    if (!userId) return null;
+    return `• *${ROLE_LABELS[role]}:* <@${userId}>`;
+  }).filter(Boolean);
+
+  return lines.length ? ['*Assignees:*', ...lines].join('\n') : '';
+}
 
 function buildRetroParentText(retro, { complete = false } = {}) {
   const typeLabel = formatVideoType(retro.video_type);
@@ -11,10 +21,12 @@ function buildRetroParentText(retro, { complete = false } = {}) {
     `*Release Date:* ${retro.release_date}`,
   ].filter(Boolean);
 
-  if (complete) {
-    lines.push('All 4 role retros have been submitted.');
+  if (!complete) {
+    const assignees = buildAssigneesText(retro);
+    if (assignees) lines.push('', assignees);
+    lines.push('', '_Responses will appear in this thread._');
   } else {
-    lines.push('_Responses will appear in this thread._');
+    lines.push('All 4 role retros have been submitted.');
   }
 
   return lines.join('\n');
@@ -41,7 +53,7 @@ function buildRetroOpenedBlocks(retro, { complete = false } = {}) {
   ];
 }
 
-function buildFillRetroDmMessage(retro, role) {
+function buildFillRetroDmMessage(retro, role, { reminderRound = 0 } = {}) {
   const roleLabel = ROLE_LABELS[role];
   const payload = JSON.stringify({
     retro_id: retro.retro_id,
@@ -50,15 +62,21 @@ function buildFillRetroDmMessage(retro, role) {
     thread_ts: retro.thread_ts,
   });
 
+  const intro = reminderRound > 0
+    ? `*Reminder ${reminderRound}/${MAX_REMINDER_ROUNDS}:* Your retro for *${retro.video_name}* is still pending.`
+    : `*Retro reminder* for *${retro.video_name}*`;
+
   return {
-    text: `Fill your retro for "${retro.video_name}" (${roleLabel})`,
+    text: reminderRound > 0
+      ? `Reminder: fill your retro for "${retro.video_name}" (${roleLabel})`
+      : `Fill your retro for "${retro.video_name}" (${roleLabel})`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
           text: [
-            `*Retro reminder* for *${retro.video_name}*`,
+            intro,
             `*IP:* ${retro.ip_name}`,
             `*Your role:* ${roleLabel}`,
             'Please share what was good, what was bad, and your action items.',
@@ -76,6 +94,36 @@ function buildFillRetroDmMessage(retro, role) {
             value: payload,
           },
         ],
+      },
+    ],
+  };
+}
+
+function buildCreatorEscalationMessage(retro, pendingRoles) {
+  const pendingList = pendingRoles
+    .map((role) => {
+      const userId = retro[ROLE_SLACK_ID_FIELDS[role]];
+      return userId ? `• *${ROLE_LABELS[role]}:* <@${userId}>` : null;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    text: `Retro overdue: ${retro.video_name}`,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: [
+            `<@${retro.created_by}> — *${retro.video_name}* retro is still incomplete after 60 hours.`,
+            '',
+            '*Pending roles:*',
+            pendingList,
+            '',
+            'Please follow up with the team to close this retro.',
+          ].join('\n'),
+        },
       },
     ],
   };
@@ -221,4 +269,6 @@ module.exports = {
   buildRetroScheduledConfirmation,
   buildRetroOpenedConfirmation,
   buildInsightsThreadMessage,
+  buildCreatorEscalationMessage,
+  buildAssigneesText,
 };
