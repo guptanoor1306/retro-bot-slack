@@ -400,6 +400,22 @@ async function openRetro(client, retro, openTrigger = 'scheduled') {
   return updatedRetro;
 }
 
+async function backfillOpenRetroParentMessages(client) {
+  const { getOpenRetros } = require('./sheets');
+  const retros = await getOpenRetros();
+  let updated = 0;
+
+  for (const retro of retros) {
+    if (!retro.channel_id || !retro.thread_ts) continue;
+    await updateParentMessage(client, retro, { complete: false });
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    logInfo(`Updated parent messages with assignees for ${updated} open retro(s)`);
+  }
+}
+
 function createOpenRetroHandler(app) {
   return (retro, openTrigger = 'scheduled') => openRetro(app.client, retro, openTrigger);
 }
@@ -408,4 +424,5 @@ module.exports = {
   createSlackApp,
   createOpenRetroHandler,
   openRetro,
+  backfillOpenRetroParentMessages,
 };

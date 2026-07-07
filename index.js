@@ -1,7 +1,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env'), override: true });
 
 const { initSheets } = require('./src/sheets');
-const { createSlackApp, createOpenRetroHandler } = require('./src/slackApp');
+const { createSlackApp, createOpenRetroHandler, backfillOpenRetroParentMessages } = require('./src/slackApp');
 const { startScheduler, startReminderScheduler } = require('./src/scheduler');
 const { logError, logInfo } = require('./src/utils');
 
@@ -30,6 +30,10 @@ async function main() {
 
   startScheduler(openRetro);
   startReminderScheduler(app.client);
+
+  backfillOpenRetroParentMessages(app.client).catch((error) => {
+    logError('backfill parent messages', error);
+  });
 
   const port = process.env.PORT || 3000;
 
