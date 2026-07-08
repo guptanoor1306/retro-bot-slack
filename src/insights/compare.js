@@ -1,5 +1,5 @@
 const { getRetroById, getRetrosByIp } = require('../sheets');
-const { ROLE_LABELS, formatVideoType } = require('../utils');
+const { formatMemberLabel, formatVideoType } = require('../utils');
 
 async function loadRetroWithResponses(retro) {
   const { getResponsesForRetro } = require('../sheets');
@@ -9,7 +9,7 @@ async function loadRetroWithResponses(retro) {
 
 function formatRetroForAnalysis({ retro, responses }) {
   const byRole = responses.map((r) => ({
-    role: ROLE_LABELS[r.role] || r.role,
+    role: formatMemberLabel(r.role),
     good: r.good,
     bad: r.bad,
     action_items: r.action_items,

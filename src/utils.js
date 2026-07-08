@@ -1,20 +1,93 @@
 const { v4: uuidv4 } = require('uuid');
 
-const ROLES = ['writer', 'editor', 'designer', 'sound_designer'];
+const MIN_POD_MEMBERS = 4;
+const MAX_POD_MEMBERS = 10;
 
-const ROLE_LABELS = {
+const LEGACY_ROLES = ['writer', 'editor', 'designer', 'sound_designer'];
+
+const LEGACY_ROLE_LABELS = {
   writer: 'Writer',
   editor: 'Editor',
   designer: 'Designer',
   sound_designer: 'Sound Designer',
 };
 
-const ROLE_SLACK_ID_FIELDS = {
+const LEGACY_ROLE_SLACK_ID_FIELDS = {
   writer: 'writer_slack_id',
   editor: 'editor_slack_id',
   designer: 'designer_slack_id',
   sound_designer: 'sound_slack_id',
 };
+
+function podMemberRoleKey(index) {
+  return `pod_member_${index}`;
+}
+
+function podMemberLabel(index) {
+  return `POD Member ${index}`;
+}
+
+function usesLegacyMemberModel(retro) {
+  if (!retro.pod_member_ids) return true;
+  try {
+    const ids = JSON.parse(retro.pod_member_ids);
+    return !Array.isArray(ids) || ids.length === 0;
+  } catch {
+    return true;
+  }
+}
+
+function parsePodMemberIds(retro) {
+  if (!usesLegacyMemberModel(retro)) {
+    return JSON.parse(retro.pod_member_ids).filter(Boolean);
+  }
+
+  return LEGACY_ROLES
+    .map((role) => retro[LEGACY_ROLE_SLACK_ID_FIELDS[role]])
+    .filter(Boolean);
+}
+
+function getPodMemberSlots(retro) {
+  if (usesLegacyMemberModel(retro)) {
+    return LEGACY_ROLES.map((role, index) => {
+      const userId = retro[LEGACY_ROLE_SLACK_ID_FIELDS[role]];
+      if (!userId) return null;
+      return {
+        role,
+        index: index + 1,
+        userId,
+        label: LEGACY_ROLE_LABELS[role],
+      };
+    }).filter(Boolean);
+  }
+
+  return parsePodMemberIds(retro).map((userId, index) => ({
+    role: podMemberRoleKey(index + 1),
+    index: index + 1,
+    userId,
+    label: podMemberLabel(index + 1),
+  }));
+}
+
+function serializePodMemberIds(ids) {
+  return JSON.stringify(ids);
+}
+
+function formatMemberLabel(role) {
+  const match = /^pod_member_(\d+)$/.exec(role);
+  if (match) return podMemberLabel(parseInt(match[1], 10));
+  return LEGACY_ROLE_LABELS[role] || role;
+}
+
+function getMemberRoleForUser(retro, userSlackId) {
+  const slot = getPodMemberSlots(retro).find((s) => s.userId === userSlackId);
+  return slot?.role || null;
+}
+
+/** @deprecated use getMemberRoleForUser */
+function getRoleForUser(retro, userSlackId) {
+  return getMemberRoleForUser(retro, userSlackId);
+}
 
 const VIDEO_TYPES = {
   long_form: 'Long-form',
@@ -73,14 +146,6 @@ function logInfo(message, data) {
   }
 }
 
-function getRoleForUser(retro, userSlackId) {
-  for (const role of ROLES) {
-    const field = ROLE_SLACK_ID_FIELDS[role];
-    if (retro[field] === userSlackId) return role;
-  }
-  return null;
-}
-
 function parseActionValue(value) {
   try {
     return JSON.parse(value);
@@ -103,13 +168,21 @@ function formatThreadTsForSheet(ts) {
 }
 
 module.exports = {
-  ROLES,
-  ROLE_LABELS,
-  ROLE_SLACK_ID_FIELDS,
+  MIN_POD_MEMBERS,
+  MAX_POD_MEMBERS,
+  LEGACY_ROLES,
+  LEGACY_ROLE_LABELS,
   VIDEO_TYPES,
   REMINDER_INTERVAL_HOURS,
   MAX_REMINDER_ROUNDS,
   CREATOR_ESCALATION_HOURS,
+  podMemberRoleKey,
+  podMemberLabel,
+  parsePodMemberIds,
+  getPodMemberSlots,
+  serializePodMemberIds,
+  formatMemberLabel,
+  getMemberRoleForUser,
   generateId,
   todayIST,
   addDaysIST,

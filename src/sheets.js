@@ -8,6 +8,7 @@ const MAPPINGS_TAB = 'PremierMappings';
 const RETROS_HEADERS = [
   'retro_id', 'video_name', 'ip_name', 'video_type', 'release_date',
   'writer_slack_id', 'editor_slack_id', 'designer_slack_id', 'sound_slack_id',
+  'pod_member_ids',
   'created_by', 'status', 'open_trigger', 'channel_id', 'thread_ts',
   'created_at', 'opened_at', 'completed_at', 'reminder_count', 'creator_notified_at',
 ];

@@ -1,17 +1,20 @@
-const { ROLES, ROLE_LABELS, ROLE_SLACK_ID_FIELDS, formatVideoType, retroOpenDate, MAX_REMINDER_ROUNDS } = require('./utils');
+const {
+  getPodMemberSlots,
+  formatMemberLabel,
+  formatVideoType,
+  retroOpenDate,
+  MAX_REMINDER_ROUNDS,
+} = require('./utils');
 
 function buildAssigneesText(retro) {
-  const lines = ROLES.map((role) => {
-    const userId = retro[ROLE_SLACK_ID_FIELDS[role]];
-    if (!userId) return null;
-    return `• *${ROLE_LABELS[role]}:* <@${userId}>`;
-  }).filter(Boolean);
-
-  return lines.length ? ['*Assignees:*', ...lines].join('\n') : '';
+  const slots = getPodMemberSlots(retro);
+  const lines = slots.map((slot) => `• <@${slot.userId}>`);
+  return lines.length ? ['*POD Members:*', ...lines].join('\n') : '';
 }
 
 function buildRetroParentText(retro, { complete = false } = {}) {
   const typeLabel = formatVideoType(retro.video_type);
+  const memberCount = getPodMemberSlots(retro).length;
   const lines = [
     complete
       ? `*Retro complete:* ${retro.video_name} :white_check_mark:`
@@ -26,7 +29,7 @@ function buildRetroParentText(retro, { complete = false } = {}) {
     if (assignees) lines.push('', assignees);
     lines.push('', '_Responses will appear in this thread._');
   } else {
-    lines.push('All 4 role retros have been submitted.');
+    lines.push(`All ${memberCount} POD member retros have been submitted.`);
   }
 
   return lines.join('\n');
@@ -54,7 +57,7 @@ function buildRetroOpenedBlocks(retro, { complete = false } = {}) {
 }
 
 function buildFillRetroDmMessage(retro, role, { reminderRound = 0 } = {}) {
-  const roleLabel = ROLE_LABELS[role];
+  const memberLabel = formatMemberLabel(role);
   const payload = JSON.stringify({
     retro_id: retro.retro_id,
     role,
@@ -68,8 +71,8 @@ function buildFillRetroDmMessage(retro, role, { reminderRound = 0 } = {}) {
 
   return {
     text: reminderRound > 0
-      ? `Reminder: fill your retro for "${retro.video_name}" (${roleLabel})`
-      : `Fill your retro for "${retro.video_name}" (${roleLabel})`,
+      ? `Reminder: fill your retro for "${retro.video_name}" (${memberLabel})`
+      : `Fill your retro for "${retro.video_name}" (${memberLabel})`,
     blocks: [
       {
         type: 'section',
@@ -78,7 +81,7 @@ function buildFillRetroDmMessage(retro, role, { reminderRound = 0 } = {}) {
           text: [
             intro,
             `*IP:* ${retro.ip_name}`,
-            `*Your role:* ${roleLabel}`,
+            `*You are:* ${memberLabel}`,
             'Please share what was good, what was bad, and your action items.',
           ].join('\n'),
         },
@@ -99,13 +102,9 @@ function buildFillRetroDmMessage(retro, role, { reminderRound = 0 } = {}) {
   };
 }
 
-function buildCreatorEscalationMessage(retro, pendingRoles) {
-  const pendingList = pendingRoles
-    .map((role) => {
-      const userId = retro[ROLE_SLACK_ID_FIELDS[role]];
-      return userId ? `• *${ROLE_LABELS[role]}:* <@${userId}>` : null;
-    })
-    .filter(Boolean)
+function buildCreatorEscalationMessage(retro, pendingSlots) {
+  const pendingList = pendingSlots
+    .map((slot) => `• *${slot.label}:* <@${slot.userId}>`)
     .join('\n');
 
   return {
@@ -118,7 +117,7 @@ function buildCreatorEscalationMessage(retro, pendingRoles) {
           text: [
             `<@${retro.created_by}> — *${retro.video_name}* retro is still incomplete after 60 hours.`,
             '',
-            '*Pending roles:*',
+            '*Pending POD members:*',
             pendingList,
             '',
             'Please follow up with the team to close this retro.',
@@ -130,16 +129,16 @@ function buildCreatorEscalationMessage(retro, pendingRoles) {
 }
 
 function buildResponseThreadMessage(role, response) {
-  const roleLabel = ROLE_LABELS[role];
+  const memberLabel = formatMemberLabel(role);
 
   return {
-    text: `${roleLabel} retro submitted`,
+    text: `${memberLabel} retro submitted`,
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*${roleLabel}* (<@${response.user_slack_id}>) submitted their retro`,
+          text: `*${memberLabel}* (<@${response.user_slack_id}>) submitted their retro`,
         },
       },
       {
@@ -158,11 +157,11 @@ function buildResponseThreadMessage(role, response) {
 }
 
 function buildRetroCompleteMessage(retro, responses) {
-  const actionSummary = ROLES.map((role) => {
-    const resp = responses.find((r) => r.role === role);
-    const label = ROLE_LABELS[role];
+  const slots = getPodMemberSlots(retro);
+  const actionSummary = slots.map((slot) => {
+    const resp = responses.find((r) => r.role === slot.role);
     const items = resp?.action_items || '_No action items submitted_';
-    return `*${label}:* ${items}`;
+    return `*${slot.label}:* ${items}`;
   }).join('\n');
 
   return {
@@ -174,7 +173,7 @@ function buildRetroCompleteMessage(retro, responses) {
           type: 'mrkdwn',
           text: [
             `*Retro complete:* ${retro.video_name}`,
-            'All 4 role retros have been submitted.',
+            `All ${slots.length} POD member retros have been submitted.`,
             '',
             '*Action Items Summary:*',
             actionSummary,
@@ -225,6 +224,7 @@ function buildRetroScheduledConfirmation(retro) {
 }
 
 function buildRetroOpenedConfirmation(retro) {
+  const memberCount = getPodMemberSlots(retro).length;
   return {
     text: `Retro opened: ${retro.video_name}`,
     blocks: [
@@ -232,7 +232,7 @@ function buildRetroOpenedConfirmation(retro) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*Retro opened early* for *${retro.video_name}*\nThread posted in <#${process.env.RETRO_CHANNEL_ID}>. DMs sent to all roles.`,
+          text: `*Retro opened early* for *${retro.video_name}*\nThread posted in <#${process.env.RETRO_CHANNEL_ID}>. DMs sent to all ${memberCount} POD members.`,
         },
       },
     ],

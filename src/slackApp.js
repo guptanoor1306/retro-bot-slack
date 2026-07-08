@@ -4,8 +4,9 @@ const {
   nowISO,
   logError,
   logInfo,
-  ROLES,
-  ROLE_SLACK_ID_FIELDS,
+  MIN_POD_MEMBERS,
+  getPodMemberSlots,
+  serializePodMemberIds,
   parseActionValue,
   normalizeSlackTs,
   retroOpenDate,
@@ -80,6 +81,24 @@ function registerHandlers(app) {
       return;
     }
 
+    if (data.pod_member_ids.length < MIN_POD_MEMBERS) {
+      await ack({
+        response_action: 'errors',
+        errors: {
+          [`pod_member_${MIN_POD_MEMBERS}_block`]: `Add at least ${MIN_POD_MEMBERS} POD members`,
+        },
+      });
+      return;
+    }
+
+    if (new Set(data.pod_member_ids).size !== data.pod_member_ids.length) {
+      await ack({
+        response_action: 'errors',
+        errors: { pod_member_1_block: 'Each POD member must be a different person' },
+      });
+      return;
+    }
+
     let dmSent = false;
     try {
       const retro = {
@@ -88,10 +107,11 @@ function registerHandlers(app) {
         ip_name: data.ip_name,
         video_type: data.video_type,
         release_date: data.release_date,
-        writer_slack_id: data.writer_slack_id,
-        editor_slack_id: data.editor_slack_id,
-        designer_slack_id: data.designer_slack_id,
-        sound_slack_id: data.sound_slack_id,
+        pod_member_ids: serializePodMemberIds(data.pod_member_ids),
+        writer_slack_id: '',
+        editor_slack_id: '',
+        designer_slack_id: '',
+        sound_slack_id: '',
         created_by: body.user.id,
         status: 'scheduled',
         open_trigger: '',
@@ -205,12 +225,12 @@ function registerHandlers(app) {
         return;
       }
 
-      const expectedUserId = retro[ROLE_SLACK_ID_FIELDS[payload.role]];
-      if (body.user.id !== expectedUserId) {
+      const slot = getPodMemberSlots(retro).find((s) => s.role === payload.role);
+      if (!slot || body.user.id !== slot.userId) {
         await client.chat.postEphemeral({
           channel: body.channel?.id || body.user.id,
           user: body.user.id,
-          text: 'You are not assigned to this role for this retro.',
+          text: 'You are not assigned as a POD member for this retro.',
         });
         return;
       }
@@ -295,8 +315,9 @@ function registerHandlers(app) {
         });
 
         const allResponses = await getResponsesForRetro(data.retro_id);
+        const memberCount = getPodMemberSlots(retro).length;
 
-        if (allResponses.length === ROLES.length) {
+        if (allResponses.length === memberCount) {
           await completeRetro(client, { ...retro, channel_id: channelId, thread_ts: threadTs }, allResponses);
         }
       } else {
@@ -384,15 +405,14 @@ async function openRetro(client, retro, openTrigger = 'scheduled') {
     creator_notified_at: '',
   });
 
-  for (const role of ROLES) {
-    const userId = updatedRetro[ROLE_SLACK_ID_FIELDS[role]];
+  for (const slot of getPodMemberSlots(updatedRetro)) {
     try {
       await client.chat.postMessage({
-        channel: userId,
-        ...buildFillRetroDmMessage(updatedRetro, role),
+        channel: slot.userId,
+        ...buildFillRetroDmMessage(updatedRetro, slot.role),
       });
     } catch (error) {
-      logError(`DM assignee ${userId} for ${retro.retro_id}`, error);
+      logError(`DM POD member ${slot.userId} for ${retro.retro_id}`, error);
     }
   }
 

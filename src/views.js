@@ -1,7 +1,31 @@
-const { ROLE_LABELS, VIDEO_TYPES, retroOpenDate, formatVideoType } = require('./utils');
+const {
+  MIN_POD_MEMBERS,
+  MAX_POD_MEMBERS,
+  VIDEO_TYPES,
+  retroOpenDate,
+  formatVideoType,
+  formatMemberLabel,
+} = require('./utils');
 
 const CREATE_RETRO_CALLBACK = 'create_retro_submit';
 const FILL_RETRO_CALLBACK = 'fill_retro_submit';
+
+function buildPodMemberBlocks() {
+  const blocks = [];
+  for (let i = 1; i <= MAX_POD_MEMBERS; i += 1) {
+    blocks.push({
+      type: 'input',
+      block_id: `pod_member_${i}_block`,
+      optional: i > MIN_POD_MEMBERS,
+      label: {
+        type: 'plain_text',
+        text: i > MIN_POD_MEMBERS ? `POD Member ${i} (optional)` : `POD Member ${i}`,
+      },
+      element: { type: 'users_select', action_id: `pod_member_${i}` },
+    });
+  }
+  return blocks;
+}
 
 function buildCreateRetroModal({ channelId, userId } = {}) {
   return {
@@ -57,36 +81,13 @@ function buildCreateRetroModal({ channelId, userId } = {}) {
           placeholder: { type: 'plain_text', text: 'Select release date' },
         },
       },
-      {
-        type: 'input',
-        block_id: 'writer_block',
-        label: { type: 'plain_text', text: 'Writer' },
-        element: { type: 'users_select', action_id: 'writer' },
-      },
-      {
-        type: 'input',
-        block_id: 'editor_block',
-        label: { type: 'plain_text', text: 'Editor' },
-        element: { type: 'users_select', action_id: 'editor' },
-      },
-      {
-        type: 'input',
-        block_id: 'designer_block',
-        label: { type: 'plain_text', text: 'Designer' },
-        element: { type: 'users_select', action_id: 'designer' },
-      },
-      {
-        type: 'input',
-        block_id: 'sound_block',
-        label: { type: 'plain_text', text: 'Sound Designer' },
-        element: { type: 'users_select', action_id: 'sound_designer' },
-      },
+      ...buildPodMemberBlocks(),
     ],
   };
 }
 
 function buildFillRetroModal({ retroId, role, userSlackId, videoName, channelId, threadTs }) {
-  const roleLabel = ROLE_LABELS[role] || role;
+  const memberLabel = formatMemberLabel(role);
 
   return {
     type: 'modal',
@@ -106,7 +107,7 @@ function buildFillRetroModal({ retroId, role, userSlackId, videoName, channelId,
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*Video:* ${videoName}\n*Your Role:* ${roleLabel}`,
+          text: `*Video:* ${videoName}\n*You are:* ${memberLabel}`,
         },
       },
       {
@@ -148,15 +149,20 @@ function buildFillRetroModal({ retroId, role, userSlackId, videoName, channelId,
 
 function parseCreateRetroSubmission(view) {
   const values = view.state.values;
+  const pod_member_ids = [];
+
+  for (let i = 1; i <= MAX_POD_MEMBERS; i += 1) {
+    const blockId = `pod_member_${i}_block`;
+    const userId = values[blockId]?.[`pod_member_${i}`]?.selected_user;
+    if (userId) pod_member_ids.push(userId);
+  }
+
   return {
     video_name: values.video_name_block.video_name.value.trim(),
     ip_name: values.ip_name_block.ip_name.value.trim(),
     video_type: values.video_type_block.video_type.selected_option.value,
     release_date: values.release_date_block.release_date.selected_date,
-    writer_slack_id: values.writer_block.writer.selected_user,
-    editor_slack_id: values.editor_block.editor.selected_user,
-    designer_slack_id: values.designer_block.designer.selected_user,
-    sound_slack_id: values.sound_block.sound_designer.selected_user,
+    pod_member_ids,
   };
 }
 
