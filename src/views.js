@@ -231,6 +231,17 @@ function buildCreateSocialRetroModal({
     },
     {
       type: 'input',
+      block_id: 'link_block',
+      label: { type: 'plain_text', text: 'Link' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'link',
+        initial_value: viewState?.link_block?.link?.value || undefined,
+        placeholder: { type: 'plain_text', text: 'https://instagram.com/p/... or LinkedIn post URL' },
+      },
+    },
+    {
+      type: 'input',
       block_id: 'release_date_block',
       label: { type: 'plain_text', text: 'Release Date' },
       hint: { type: 'plain_text', text: 'Retro opens automatically at 10 AM IST the next day' },
@@ -443,6 +454,7 @@ function parseCreateSocialSubmission(view, maxMembers) {
     video_name: values.video_name_block.video_name.value.trim(),
     ip_name: values.ip_name_block.ip_name_pick.selected_option.value,
     video_type,
+    link: values.link_block?.link?.value?.trim() || '',
     release_date: values.release_date_block.release_date.selected_date,
     pod_member_ids: parsePodMembersFromView(view, maxMembers),
   };

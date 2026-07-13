@@ -112,6 +112,7 @@ async function scheduleRetroFromSubmission({ ack, body, view, client, platform }
       social_platform: platform === 'social' ? (data.social_platform || 'instagram') : '',
       video_type: data.video_type,
       release_date: data.release_date,
+      link: platform === 'social' ? (data.link || '') : '',
       pod_member_ids: serializePodMemberIds(data.pod_member_ids),
       writer_slack_id: '',
       editor_slack_id: '',

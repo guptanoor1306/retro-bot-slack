@@ -28,13 +28,20 @@ function buildAssigneesText(retro) {
   return lines.length ? ['*POD Members:*', ...lines].join('\n') : '';
 }
 
+function formatSocialLinkLine(retro) {
+  const link = retro.link?.trim();
+  if (!link || !isSocialRetro(retro)) return null;
+  return `*Link:* <${link}|View post>`;
+}
+
 function buildRetroParentText(retro, { complete = false } = {}) {
   const memberCount = getPodMemberSlots(retro).length;
   const lines = [
     buildRetroTitleLine(retro, { complete }),
     `*IP:* ${retro.ip_name}`,
     `*Release Date:* ${retro.release_date}`,
-  ];
+    formatSocialLinkLine(retro),
+  ].filter(Boolean);
 
   if (!complete) {
     const assignees = buildAssigneesText(retro);
