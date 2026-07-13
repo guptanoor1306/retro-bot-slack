@@ -1,5 +1,5 @@
 const { WebClient } = require('@slack/web-api');
-const { normalizeSlackTs, logError } = require('../utils');
+const { normalizeSlackTs, logError, getRetroChannelId } = require('../utils');
 const { getRetroById } = require('../sheets');
 const { buildInsightsThreadMessage } = require('../messages');
 
@@ -9,7 +9,7 @@ async function publishInsightsToThread({ retroId, analysis }) {
   const retro = await getRetroById(retroId);
   if (!retro) throw new Error('Retro not found');
 
-  const channelId = retro.channel_id || process.env.RETRO_CHANNEL_ID;
+  const channelId = retro.channel_id || getRetroChannelId(retro);
   const threadTs = normalizeSlackTs(retro.thread_ts);
 
   if (!channelId || !threadTs || !threadTs.includes('.')) {

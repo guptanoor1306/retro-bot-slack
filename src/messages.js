@@ -5,6 +5,7 @@ const {
   formatPlatformLabel,
   getRetroPlatform,
   isSocialRetro,
+  getRetroChannelId,
   getSocialAnalyticsFields,
   parseAnalyticsJson,
   retroOpenDate,
@@ -261,6 +262,7 @@ function buildRetroScheduledConfirmation(retro) {
 
 function buildRetroOpenedConfirmation(retro) {
   const memberCount = getPodMemberSlots(retro).length;
+  const channelId = retro.channel_id || getRetroChannelId(retro);
   return {
     text: `Retro opened: ${retro.video_name}`,
     blocks: [
@@ -268,7 +270,7 @@ function buildRetroOpenedConfirmation(retro) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*Retro opened early* for *${retro.video_name}*\nThread posted in <#${process.env.RETRO_CHANNEL_ID}>. DMs sent to all ${memberCount} POD members.`,
+          text: `*Retro opened early* for *${retro.video_name}*\nThread posted in <#${channelId}>. DMs sent to all ${memberCount} POD members.`,
         },
       },
     ],

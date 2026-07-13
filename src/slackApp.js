@@ -6,6 +6,7 @@ const {
   logInfo,
   getPodMemberSlots,
   getPodMemberLimits,
+  getRetroChannelId,
   serializePodMemberIds,
   isSocialRetro,
   parseActionValue,
@@ -227,10 +228,11 @@ function registerHandlers(app) {
       }
 
       await openRetro(client, retro, 'manual');
+      const opened = await getRetroById(retro.retro_id);
 
       await client.chat.postMessage({
         channel: body.user.id,
-        ...buildRetroOpenedConfirmation(retro),
+        ...buildRetroOpenedConfirmation(opened || retro),
       });
 
       logInfo('Retro opened manually', { retro_id: retro.retro_id });
@@ -438,8 +440,7 @@ async function completeRetro(client, retro, responses) {
 }
 
 async function openRetro(client, retro, openTrigger = 'scheduled') {
-  const channelId = process.env.RETRO_CHANNEL_ID;
-  if (!channelId) throw new Error('RETRO_CHANNEL_ID is not set');
+  const channelId = getRetroChannelId(retro);
 
   const message = buildRetroOpenedMessage(retro);
   const postResult = await client.chat.postMessage({

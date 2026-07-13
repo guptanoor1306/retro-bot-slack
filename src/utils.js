@@ -247,6 +247,20 @@ function normalizeSlackTs(ts) {
   return s;
 }
 
+function getRetroChannelIdForPlatform(platform) {
+  if (platform === 'social') {
+    const socialChannel = process.env.RETRO_SOCIAL_CHANNEL_ID?.trim();
+    if (socialChannel) return socialChannel;
+  }
+  const channelId = process.env.RETRO_CHANNEL_ID?.trim();
+  if (!channelId) throw new Error('RETRO_CHANNEL_ID is not set');
+  return channelId;
+}
+
+function getRetroChannelId(retro) {
+  return getRetroChannelIdForPlatform(getRetroPlatform(retro));
+}
+
 function formatThreadTsForSheet(ts) {
   if (!ts) return '';
   return String(ts);
@@ -270,6 +284,8 @@ module.exports = {
   CREATOR_ESCALATION_HOURS,
   getRetroPlatform,
   isSocialRetro,
+  getRetroChannelId,
+  getRetroChannelIdForPlatform,
   getPodMemberLimits,
   getSocialAnalyticsFields,
   formatContentType,
