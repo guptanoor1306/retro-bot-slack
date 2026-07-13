@@ -10,14 +10,29 @@ const PLATFORMS = {
   social: 'Social',
 };
 
-const SOCIAL_TYPES = {
+const SOCIAL_PLATFORMS = {
+  instagram: 'Instagram',
+  linkedin: 'LinkedIn',
+};
+
+const SOCIAL_IP_OPTIONS = ['PS', 'Zero1'];
+
+const INSTAGRAM_TYPES = {
   reel: 'Reel',
   carousel: 'Carousel',
   story: 'Story',
   post: 'Post',
 };
 
-const SOCIAL_ANALYTICS_BY_TYPE = {
+const LINKEDIN_TYPES = {
+  post: 'Post',
+  reel: 'Reel',
+};
+
+/** @deprecated use INSTAGRAM_TYPES / LINKEDIN_TYPES */
+const SOCIAL_TYPES = INSTAGRAM_TYPES;
+
+const INSTAGRAM_ANALYTICS_BY_TYPE = {
   reel: [
     { key: 'skip_rate', label: 'Skip Rate' },
     { key: 'share_rate', label: 'Share Rate' },
@@ -38,6 +53,22 @@ const SOCIAL_ANALYTICS_BY_TYPE = {
     { key: 'completion_rate', label: 'Completion Rate' },
   ],
 };
+
+const LINKEDIN_ANALYTICS_BY_TYPE = {
+  post: [
+    { key: 'impressions', label: 'Impressions' },
+    { key: 'reactions', label: 'Reactions' },
+    { key: 'comments', label: 'Comments' },
+  ],
+  reel: [
+    { key: 'impressions', label: 'Impressions' },
+    { key: 'reactions', label: 'Reactions' },
+    { key: 'comments', label: 'Comments' },
+  ],
+};
+
+/** @deprecated */
+const SOCIAL_ANALYTICS_BY_TYPE = INSTAGRAM_ANALYTICS_BY_TYPE;
 
 const SOCIAL_MAX_COMPARE = 4;
 const DEFAULT_SOCIAL_ANALYTICS_WEIGHT = 0.4;
@@ -165,17 +196,45 @@ function getPodMemberLimits(platform) {
   return { min: MIN_POD_MEMBERS, max: MAX_POD_MEMBERS };
 }
 
-function getSocialAnalyticsFields(contentType) {
-  return SOCIAL_ANALYTICS_BY_TYPE[contentType] || [];
+function getSocialPlatform(retro) {
+  if (getRetroPlatform(retro) !== 'social') return '';
+  return retro.social_platform || 'instagram';
 }
 
-function formatContentType(type, platform = 'youtube') {
-  if (platform === 'social') return SOCIAL_TYPES[type] || type || '';
+function getSocialTypesForPlatform(socialPlatform) {
+  if (socialPlatform === 'linkedin') return LINKEDIN_TYPES;
+  return INSTAGRAM_TYPES;
+}
+
+function isValidSocialTypeCombo(socialPlatform, contentType) {
+  return Boolean(getSocialTypesForPlatform(socialPlatform)[contentType]);
+}
+
+function getSocialAnalyticsFields(socialPlatform, contentType) {
+  if (socialPlatform === 'linkedin') {
+    return LINKEDIN_ANALYTICS_BY_TYPE[contentType] || [];
+  }
+  return INSTAGRAM_ANALYTICS_BY_TYPE[contentType] || [];
+}
+
+function formatSocialPlatformLabel(socialPlatform) {
+  return SOCIAL_PLATFORMS[socialPlatform] || socialPlatform || 'Instagram';
+}
+
+function formatContentType(type, platform = 'youtube', socialPlatform = 'instagram') {
+  if (platform === 'social') {
+    return getSocialTypesForPlatform(socialPlatform)[type] || type || '';
+  }
   return VIDEO_TYPES[type] || type || '';
 }
 
 function formatRetroTypeLabel(retro) {
-  return formatContentType(retro.video_type, getRetroPlatform(retro));
+  if (getRetroPlatform(retro) === 'social') {
+    const socialPlatform = getSocialPlatform(retro);
+    const typeLabel = formatContentType(retro.video_type, 'social', socialPlatform);
+    return `${formatSocialPlatformLabel(socialPlatform)} · ${typeLabel}`;
+  }
+  return formatVideoType(retro.video_type);
 }
 
 function formatVideoType(type) {
@@ -272,6 +331,10 @@ module.exports = {
   SOCIAL_MIN_POD_MEMBERS,
   SOCIAL_MAX_POD_MEMBERS,
   PLATFORMS,
+  SOCIAL_PLATFORMS,
+  SOCIAL_IP_OPTIONS,
+  INSTAGRAM_TYPES,
+  LINKEDIN_TYPES,
   SOCIAL_TYPES,
   SOCIAL_ANALYTICS_BY_TYPE,
   SOCIAL_MAX_COMPARE,
@@ -284,6 +347,10 @@ module.exports = {
   CREATOR_ESCALATION_HOURS,
   getRetroPlatform,
   isSocialRetro,
+  getSocialPlatform,
+  getSocialTypesForPlatform,
+  isValidSocialTypeCombo,
+  formatSocialPlatformLabel,
   getRetroChannelId,
   getRetroChannelIdForPlatform,
   getPodMemberLimits,

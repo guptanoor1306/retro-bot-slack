@@ -33,6 +33,7 @@ function mapRetro(r) {
     ip_name: r.ip_name,
     platform,
     platform_label: platform === 'social' ? 'Social' : 'YouTube',
+    social_platform: platform === 'social' ? (r.social_platform || 'instagram') : '',
     video_type: r.video_type,
     video_type_label: formatRetroTypeLabel(r),
     release_date: r.release_date,
@@ -61,6 +62,11 @@ app.get('/api/retros', asyncHandler(async (req, res) => {
   }
   if (req.query.platform) {
     retros = retros.filter((r) => getRetroPlatform(r) === req.query.platform);
+  }
+  if (req.query.social_platform) {
+    retros = retros.filter(
+      (r) => (r.social_platform || 'instagram') === req.query.social_platform,
+    );
   }
   res.json(retros.map(mapRetro));
 }));

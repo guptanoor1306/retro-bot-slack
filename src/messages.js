@@ -7,6 +7,7 @@ const {
   isSocialRetro,
   getRetroChannelId,
   getSocialAnalyticsFields,
+  getSocialPlatform,
   parseAnalyticsJson,
   retroOpenDate,
   MAX_REMINDER_ROUNDS,
@@ -139,9 +140,11 @@ function buildCreatorEscalationMessage(retro, pendingSlots) {
   };
 }
 
-function formatAnalyticsSummary(response, contentType) {
+function formatAnalyticsSummary(response, retro) {
   const analytics = parseAnalyticsJson(response.analytics_json);
-  const lines = getSocialAnalyticsFields(contentType).map((metric) => {
+  const socialPlatform = getSocialPlatform(retro) || 'instagram';
+  const contentType = retro?.video_type;
+  const lines = getSocialAnalyticsFields(socialPlatform, contentType).map((metric) => {
     const value = analytics[metric.key] || '_n/a_';
     const insight = analytics[`${metric.key}_insight`] || '_n/a_';
     return `*${metric.label}:* ${value}\n_${insight}_`;
@@ -166,7 +169,7 @@ function buildResponseThreadMessage(role, response, retro = null) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Analytics*\n${formatAnalyticsSummary(response, retro.video_type)}`,
+        text: `*Analytics*\n${formatAnalyticsSummary(response, retro)}`,
       },
     });
   }

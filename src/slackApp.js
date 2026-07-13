@@ -7,6 +7,8 @@ const {
   getPodMemberSlots,
   getPodMemberLimits,
   getRetroChannelId,
+  getSocialPlatform,
+  isValidSocialTypeCombo,
   serializePodMemberIds,
   isSocialRetro,
   parseActionValue,
@@ -29,6 +31,7 @@ const {
   parseFillRetroSubmission,
   validateSocialFillSubmission,
   buildRetroScheduledSuccessView,
+  SOCIAL_PLATFORM_PICK_ACTION,
   PLATFORM_PICK_CALLBACK,
   CREATE_YOUTUBE_RETRO_CALLBACK,
   CREATE_SOCIAL_RETRO_CALLBACK,
@@ -83,6 +86,14 @@ async function scheduleRetroFromSubmission({ ack, body, view, client, platform }
     return;
   }
 
+  if (platform === 'social' && !isValidSocialTypeCombo(data.social_platform, data.video_type)) {
+    await ack({
+      response_action: 'errors',
+      errors: { video_type_block: 'Invalid type for selected platform' },
+    });
+    return;
+  }
+
   if (new Set(data.pod_member_ids).size !== data.pod_member_ids.length) {
     await ack({
       response_action: 'errors',
@@ -98,6 +109,7 @@ async function scheduleRetroFromSubmission({ ack, body, view, client, platform }
       video_name: data.video_name,
       ip_name: data.ip_name,
       platform: data.platform,
+      social_platform: platform === 'social' ? (data.social_platform || 'instagram') : '',
       video_type: data.video_type,
       release_date: data.release_date,
       pod_member_ids: serializePodMemberIds(data.pod_member_ids),
@@ -192,6 +204,30 @@ function registerHandlers(app) {
 
   app.view(CREATE_SOCIAL_RETRO_CALLBACK, async (args) => {
     await scheduleRetroFromSubmission({ ...args, platform: 'social' });
+  });
+
+  app.action(SOCIAL_PLATFORM_PICK_ACTION, async ({ ack, body, client }) => {
+    await ack();
+    const view = body.view;
+    if (!view) return;
+
+    const meta = JSON.parse(view.private_metadata || '{}');
+    const selected = body.actions?.[0]?.selected_option?.value || 'instagram';
+
+    try {
+      await client.views.update({
+        view_id: view.id,
+        hash: view.hash,
+        view: buildCreateSocialRetroModal({
+          channelId: meta.channel_id,
+          userId: meta.user_id,
+          socialPlatform: selected,
+          viewState: view.state?.values || {},
+        }),
+      });
+    } catch (error) {
+      logError('social_platform_pick', error);
+    }
   });
 
   app.action('open_retro_now', async ({ ack, body, client, action }) => {
@@ -291,6 +327,7 @@ function registerHandlers(app) {
           threadTs: normalizeSlackTs(payload.thread_ts || retro.thread_ts),
           platform: isSocialRetro(retro) ? 'social' : 'youtube',
           contentType: retro.video_type,
+          socialPlatform: getSocialPlatform(retro),
         }),
       });
     } catch (error) {

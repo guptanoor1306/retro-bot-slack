@@ -113,6 +113,14 @@
         <p class="desc">Pick an IP and <strong>2–4 completed</strong> social pieces. AI compares analytics + retro insights and picks a winner (60% retro / 40% analytics blend).</p>
         <div class="grid-2">
           <div class="field">
+            <label for="socialPlatformFilter">Platform</label>
+            <select id="socialPlatformFilter">
+              <option value="">All platforms</option>
+              <option value="instagram">Instagram</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="socialIpFilter">IP</label>
             <select id="socialIpFilter"><option value="">Loading…</option></select>
           </div>
@@ -120,10 +128,6 @@
             <label for="socialTypeFilter">Type (optional)</label>
             <select id="socialTypeFilter">
               <option value="">All types</option>
-              <option value="reel">Reel</option>
-              <option value="carousel">Carousel</option>
-              <option value="story">Story</option>
-              <option value="post">Post</option>
             </select>
           </div>
           <div class="field">

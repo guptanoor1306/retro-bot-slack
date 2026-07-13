@@ -6,7 +6,7 @@ const RESPONSES_TAB = 'Responses';
 const MAPPINGS_TAB = 'PremierMappings';
 
 const RETROS_HEADERS = [
-  'retro_id', 'video_name', 'ip_name', 'platform', 'video_type', 'release_date',
+  'retro_id', 'video_name', 'ip_name', 'platform', 'social_platform', 'video_type', 'release_date',
   'writer_slack_id', 'editor_slack_id', 'designer_slack_id', 'sound_slack_id',
   'pod_member_ids',
   'created_by', 'status', 'open_trigger', 'channel_id', 'thread_ts',

@@ -4,18 +4,21 @@ const {
   SOCIAL_MIN_POD_MEMBERS,
   SOCIAL_MAX_POD_MEMBERS,
   VIDEO_TYPES,
-  SOCIAL_TYPES,
   PLATFORMS,
+  SOCIAL_PLATFORMS,
+  SOCIAL_IP_OPTIONS,
+  getSocialTypesForPlatform,
   getSocialAnalyticsFields,
   retroOpenDate,
-  formatContentType,
   formatRetroTypeLabel,
   formatPlatformLabel,
   formatMemberLabel,
+  formatSocialPlatformLabel,
   getRetroPlatform,
 } = require('./utils');
 
 const PLATFORM_PICK_CALLBACK = 'platform_pick_submit';
+const SOCIAL_PLATFORM_PICK_ACTION = 'social_platform_pick';
 const CREATE_YOUTUBE_RETRO_CALLBACK = 'create_youtube_retro_submit';
 const CREATE_SOCIAL_RETRO_CALLBACK = 'create_social_retro_submit';
 const FILL_YOUTUBE_RETRO_CALLBACK = 'fill_youtube_retro_submit';
@@ -151,7 +154,96 @@ function buildCreateYoutubeRetroModal({ channelId, userId } = {}) {
   };
 }
 
-function buildCreateSocialRetroModal({ channelId, userId } = {}) {
+function buildCreateSocialRetroModal({
+  channelId,
+  userId,
+  socialPlatform = 'instagram',
+  viewState = {},
+} = {}) {
+  const typeOptions = getSocialTypesForPlatform(socialPlatform);
+  const savedIp = viewState?.ip_name_block?.ip_name_pick?.selected_option?.value;
+  const savedType = viewState?.video_type_block?.video_type?.selected_option?.value;
+  const validType = typeOptions[savedType] ? savedType : Object.keys(typeOptions)[0];
+
+  const blocks = [
+    {
+      type: 'input',
+      block_id: 'social_platform_block',
+      dispatch_action: true,
+      label: { type: 'plain_text', text: 'Platform' },
+      element: {
+        type: 'static_select',
+        action_id: SOCIAL_PLATFORM_PICK_ACTION,
+        options: Object.entries(SOCIAL_PLATFORMS).map(([value, text]) => ({
+          text: { type: 'plain_text', text },
+          value,
+        })),
+        initial_option: {
+          text: { type: 'plain_text', text: SOCIAL_PLATFORMS[socialPlatform] },
+          value: socialPlatform,
+        },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'video_name_block',
+      label: { type: 'plain_text', text: 'Title' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'video_name',
+        initial_value: viewState?.video_name_block?.video_name?.value || undefined,
+        placeholder: { type: 'plain_text', text: 'e.g. Summer campaign hook' },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'ip_name_block',
+      label: { type: 'plain_text', text: 'IP' },
+      element: {
+        type: 'static_select',
+        action_id: 'ip_name_pick',
+        options: SOCIAL_IP_OPTIONS.map((ip) => ({
+          text: { type: 'plain_text', text: ip },
+          value: ip,
+        })),
+        initial_option: {
+          text: { type: 'plain_text', text: savedIp && SOCIAL_IP_OPTIONS.includes(savedIp) ? savedIp : SOCIAL_IP_OPTIONS[0] },
+          value: savedIp && SOCIAL_IP_OPTIONS.includes(savedIp) ? savedIp : SOCIAL_IP_OPTIONS[0],
+        },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'video_type_block',
+      label: { type: 'plain_text', text: 'Type' },
+      element: {
+        type: 'static_select',
+        action_id: 'video_type',
+        options: Object.entries(typeOptions).map(([value, text]) => ({
+          text: { type: 'plain_text', text },
+          value,
+        })),
+        initial_option: {
+          text: { type: 'plain_text', text: typeOptions[validType] },
+          value: validType,
+        },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'release_date_block',
+      label: { type: 'plain_text', text: 'Release Date' },
+      hint: { type: 'plain_text', text: 'Retro opens automatically at 10 AM IST the next day' },
+      element: {
+        type: 'datepicker',
+        action_id: 'release_date',
+        initial_date: viewState?.release_date_block?.release_date?.selected_date || undefined,
+        placeholder: { type: 'plain_text', text: 'Select release date' },
+      },
+    },
+    ...buildPodMemberBlocks(SOCIAL_MIN_POD_MEMBERS, SOCIAL_MAX_POD_MEMBERS),
+  ];
+
   return {
     type: 'modal',
     callback_id: CREATE_SOCIAL_RETRO_CALLBACK,
@@ -163,66 +255,19 @@ function buildCreateSocialRetroModal({ channelId, userId } = {}) {
     title: { type: 'plain_text', text: 'Social Retro' },
     submit: { type: 'plain_text', text: 'Schedule Retro' },
     close: { type: 'plain_text', text: 'Back' },
-    blocks: [
-      {
-        type: 'input',
-        block_id: 'video_name_block',
-        label: { type: 'plain_text', text: 'Title' },
-        element: {
-          type: 'plain_text_input',
-          action_id: 'video_name',
-          placeholder: { type: 'plain_text', text: 'e.g. Summer campaign hook' },
-        },
-      },
-      {
-        type: 'input',
-        block_id: 'ip_name_block',
-        label: { type: 'plain_text', text: 'IP Name' },
-        element: {
-          type: 'plain_text_input',
-          action_id: 'ip_name',
-          placeholder: { type: 'plain_text', text: 'e.g. Zerodha Online' },
-        },
-      },
-      {
-        type: 'input',
-        block_id: 'video_type_block',
-        label: { type: 'plain_text', text: 'Type' },
-        element: {
-          type: 'static_select',
-          action_id: 'video_type',
-          placeholder: { type: 'plain_text', text: 'Select content type' },
-          options: Object.entries(SOCIAL_TYPES).map(([value, text]) => ({
-            text: { type: 'plain_text', text },
-            value,
-          })),
-        },
-      },
-      {
-        type: 'input',
-        block_id: 'release_date_block',
-        label: { type: 'plain_text', text: 'Release Date' },
-        hint: { type: 'plain_text', text: 'Retro opens automatically at 10 AM IST the next day' },
-        element: {
-          type: 'datepicker',
-          action_id: 'release_date',
-          placeholder: { type: 'plain_text', text: 'Select release date' },
-        },
-      },
-      ...buildPodMemberBlocks(SOCIAL_MIN_POD_MEMBERS, SOCIAL_MAX_POD_MEMBERS),
-    ],
+    blocks,
   };
 }
 
-function buildSocialAnalyticsBlocks(contentType) {
+function buildSocialAnalyticsBlocks(socialPlatform, contentType) {
   const blocks = [
     {
       type: 'section',
-      text: { type: 'mrkdwn', text: '*Analytics*' },
+      text: { type: 'mrkdwn', text: `*Analytics (${formatSocialPlatformLabel(socialPlatform)})*` },
     },
   ];
 
-  for (const metric of getSocialAnalyticsFields(contentType)) {
+  for (const metric of getSocialAnalyticsFields(socialPlatform, contentType)) {
     blocks.push({
       type: 'input',
       block_id: `${metric.key}_block`,
@@ -312,10 +357,10 @@ function buildFillYoutubeRetroModal({ retroId, role, userSlackId, videoName, cha
 }
 
 function buildFillSocialRetroModal({
-  retroId, role, userSlackId, videoName, channelId, threadTs, contentType,
+  retroId, role, userSlackId, videoName, channelId, threadTs, contentType, socialPlatform = 'instagram',
 }) {
   const memberLabel = formatMemberLabel(role);
-  const typeLabel = formatContentType(contentType, 'social');
+  const typeLabel = formatRetroTypeLabel({ video_type: contentType, platform: 'social', social_platform: socialPlatform });
 
   return {
     type: 'modal',
@@ -327,6 +372,7 @@ function buildFillSocialRetroModal({
       channel_id: channelId,
       thread_ts: threadTs,
       platform: 'social',
+      social_platform: socialPlatform,
       content_type: contentType,
     }),
     title: { type: 'plain_text', text: 'Fill Social Retro' },
@@ -337,10 +383,10 @@ function buildFillSocialRetroModal({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `*Title:* ${videoName}\n*Type:* ${typeLabel}\n*You are:* ${memberLabel}`,
+          text: `*Title:* ${videoName}\n*Format:* ${typeLabel}\n*You are:* ${memberLabel}`,
         },
       },
-      ...buildSocialAnalyticsBlocks(contentType),
+      ...buildSocialAnalyticsBlocks(socialPlatform, contentType),
       {
         type: 'section',
         text: { type: 'mrkdwn', text: '*Retro questions*' },
@@ -386,10 +432,29 @@ function buildFillRetroModal(opts) {
   return buildFillYoutubeRetroModal(opts);
 }
 
+function parseCreateSocialSubmission(view, maxMembers) {
+  const values = view.state.values;
+  const social_platform = values.social_platform_block[SOCIAL_PLATFORM_PICK_ACTION].selected_option.value;
+  const video_type = values.video_type_block.video_type.selected_option.value;
+
+  return {
+    platform: 'social',
+    social_platform,
+    video_name: values.video_name_block.video_name.value.trim(),
+    ip_name: values.ip_name_block.ip_name_pick.selected_option.value,
+    video_type,
+    release_date: values.release_date_block.release_date.selected_date,
+    pod_member_ids: parsePodMembersFromView(view, maxMembers),
+  };
+}
+
 function parseCreateRetroSubmission(view, { platform, maxMembers }) {
+  if (platform === 'social') return parseCreateSocialSubmission(view, maxMembers);
+
   const values = view.state.values;
   return {
     platform,
+    social_platform: '',
     video_name: values.video_name_block.video_name.value.trim(),
     ip_name: values.ip_name_block.ip_name.value.trim(),
     video_type: values.video_type_block.video_type.selected_option.value,
@@ -419,10 +484,11 @@ function parseFillYoutubeSubmission(view) {
 function parseFillSocialSubmission(view) {
   const values = view.state.values;
   const metadata = JSON.parse(view.private_metadata);
+  const socialPlatform = metadata.social_platform || 'instagram';
   const contentType = metadata.content_type;
   const analytics = {};
 
-  for (const metric of getSocialAnalyticsFields(contentType)) {
+  for (const metric of getSocialAnalyticsFields(socialPlatform, contentType)) {
     analytics[metric.key] = values[`${metric.key}_block`]?.[metric.key]?.value?.trim() || '';
     analytics[`${metric.key}_insight`] =
       values[`${metric.key}_insight_block`]?.[`${metric.key}_insight`]?.value?.trim() || '';
@@ -453,7 +519,7 @@ function validateSocialFillSubmission(view) {
   const values = view.state.values;
   const errors = {};
 
-  for (const metric of getSocialAnalyticsFields(metadata.content_type)) {
+  for (const metric of getSocialAnalyticsFields(metadata.social_platform || 'instagram', metadata.content_type)) {
     if (!values[`${metric.key}_block`]?.[metric.key]?.value?.trim()) {
       errors[`${metric.key}_block`] = `${metric.label} is required`;
     }
@@ -491,7 +557,7 @@ function buildRetroScheduledSuccessView(retro, { dmSent = true } = {}) {
           type: 'mrkdwn',
           text: [
             `:white_check_mark: *${retro.video_name}* scheduled`,
-            `*Platform:* ${platformLabel}`,
+            `*Platform:* ${platformLabel}${retro.social_platform ? ` · ${formatSocialPlatformLabel(retro.social_platform)}` : ''}`,
             `*IP:* ${retro.ip_name}`,
             typeLabel ? `*Type:* ${typeLabel}` : null,
             `*Release:* ${retro.release_date}`,
@@ -506,6 +572,7 @@ function buildRetroScheduledSuccessView(retro, { dmSent = true } = {}) {
 }
 
 module.exports = {
+  SOCIAL_PLATFORM_PICK_ACTION,
   PLATFORM_PICK_CALLBACK,
   CREATE_YOUTUBE_RETRO_CALLBACK,
   CREATE_SOCIAL_RETRO_CALLBACK,

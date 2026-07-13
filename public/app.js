@@ -8,6 +8,26 @@ const state = {
   platform: 'youtube',
 };
 
+const SOCIAL_TYPE_OPTIONS = {
+  instagram: [
+    { value: 'reel', label: 'Reel' },
+    { value: 'carousel', label: 'Carousel' },
+    { value: 'story', label: 'Story' },
+    { value: 'post', label: 'Post' },
+  ],
+  linkedin: [
+    { value: 'post', label: 'Post' },
+    { value: 'reel', label: 'Reel' },
+  ],
+};
+
+const ALL_SOCIAL_TYPE_OPTIONS = [
+  { value: 'reel', label: 'Reel' },
+  { value: 'carousel', label: 'Carousel' },
+  { value: 'story', label: 'Story' },
+  { value: 'post', label: 'Post' },
+];
+
 const $ = (id) => document.getElementById(id);
 
 function showToast(msg) {
@@ -72,6 +92,7 @@ async function loadData() {
       ? state.socialIps.map((ip) => `<option value="${ip}">${ip}</option>`).join('')
       : '<option value="">No Social IPs yet</option>';
 
+    updateSocialTypeFilter();
     fillRetroSelects();
     fillSocialRetroSelects();
     fillPremierSelects();
@@ -122,14 +143,36 @@ function completedRetrosForFilter() {
     );
 }
 
+function updateSocialTypeFilter() {
+  const typeEl = $('socialTypeFilter');
+  if (!typeEl) return;
+
+  const platform = $('socialPlatformFilter')?.value || '';
+  const prev = typeEl.value;
+  const types = platform ? (SOCIAL_TYPE_OPTIONS[platform] || []) : ALL_SOCIAL_TYPE_OPTIONS;
+
+  typeEl.innerHTML = [
+    '<option value="">All types</option>',
+    ...types.map((t) => `<option value="${t.value}">${t.label}</option>`),
+  ].join('');
+
+  if (prev && types.some((t) => t.value === prev)) {
+    typeEl.value = prev;
+  }
+}
+
 function completedSocialRetrosForFilter() {
   const ip = $('socialIpFilter')?.value;
+  const socialPlatform = $('socialPlatformFilter')?.value;
   const type = $('socialTypeFilter')?.value;
   if (!ip) return [];
   return retrosForPlatform('social')
-    .filter(
-      (r) => r.ip_name === ip && r.status === 'complete' && (!type || r.video_type === type),
-    )
+    .filter((r) => {
+      if (r.ip_name !== ip || r.status !== 'complete') return false;
+      if (socialPlatform && (r.social_platform || 'instagram') !== socialPlatform) return false;
+      if (type && r.video_type !== type) return false;
+      return true;
+    })
     .sort((a, b) =>
       (b.completed_at || b.release_date).localeCompare(a.completed_at || a.release_date),
     );
@@ -350,6 +393,10 @@ document.querySelectorAll('#youtubeInsights .tab').forEach((tab) => {
 
 $('ipFilter')?.addEventListener('change', () => fillRetroSelects());
 $('typeFilter')?.addEventListener('change', () => fillCompareRetroSelects());
+$('socialPlatformFilter')?.addEventListener('change', () => {
+  updateSocialTypeFilter();
+  fillSocialRetroSelects();
+});
 $('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 $('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
