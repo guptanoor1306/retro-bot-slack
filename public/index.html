@@ -10,104 +10,150 @@
   <div class="layout">
     <header>
       <h1>Retro Insights</h1>
-      <p>Compare learning across retros, Premier feedback, or both — then publish or copy results.</p>
+      <p>Compare YouTube or Social retros — publish winners and learnings to Slack threads.</p>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active" data-mode="retros">① Compare Retros</button>
-      <button class="tab" data-mode="combined">② Retro + Premier</button>
-      <button class="tab" data-mode="premiers">③ Compare Premier</button>
+    <nav class="platform-tabs">
+      <button class="platform-tab active" data-platform="youtube">YouTube</button>
+      <button class="platform-tab" data-platform="social">Social</button>
     </nav>
 
-    <!-- Mode 1: Compare Retros by IP -->
-    <section class="panel active" data-mode="retros">
+    <div id="youtubeInsights" class="platform-panel active">
+      <nav class="tabs">
+        <button class="tab active" data-mode="retros">① Compare Retros</button>
+        <button class="tab" data-mode="combined">② Retro + Premier</button>
+        <button class="tab" data-mode="premiers">③ Compare Premier</button>
+      </nav>
+
+      <section class="panel active" data-mode="retros">
+        <div class="card">
+          <h2>Compare Retros</h2>
+          <p class="desc">Pick an IP, then choose two <strong>completed</strong> YouTube retros (optionally filter by type).</p>
+          <div class="grid-2">
+            <div class="field">
+              <label for="ipFilter">IP</label>
+              <select id="ipFilter"><option value="">Loading…</option></select>
+            </div>
+            <div class="field">
+              <label for="typeFilter">Type (optional)</label>
+              <select id="typeFilter">
+                <option value="">All types</option>
+                <option value="long_form">Long-form</option>
+                <option value="shorts_reels">Shorts/Reels</option>
+                <option value="podcast">Podcast</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="retroOlder">Retro A (older)</label>
+              <select id="retroOlder"><option value="">Select IP first</option></select>
+            </div>
+            <div class="field">
+              <label for="retroNewer">Retro B (newer)</label>
+              <select id="retroNewer"><option value="">Select IP first</option></select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="analyzeBtn" class="btn btn-primary">Run analysis</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-mode="combined">
+        <div class="card">
+          <h2>Retro + Premier Combined</h2>
+          <p class="desc">Select 2 retros (older → newer) and 2 Premier sessions to check if learnings were implemented.</p>
+          <div class="grid-2">
+            <div class="field">
+              <label for="combinedRetroA">Retro A (older)</label>
+              <select id="combinedRetroA"></select>
+            </div>
+            <div class="field">
+              <label for="combinedRetroB">Retro B (newer)</label>
+              <select id="combinedRetroB"></select>
+            </div>
+            <div class="field">
+              <label for="combinedPremierA">Premier A (older)</label>
+              <select id="combinedPremierA"></select>
+            </div>
+            <div class="field">
+              <label for="combinedPremierB">Premier B (newer)</label>
+              <select id="combinedPremierB"></select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-mode="premiers">
+        <div class="card">
+          <h2>Compare Premier Feedback</h2>
+          <p class="desc">Compare reviewer feedback across two Premier sessions — copy results (no Slack publish).</p>
+          <div class="grid-2">
+            <div class="field">
+              <label for="premierA">Premier session A</label>
+              <select id="premierA"></select>
+            </div>
+            <div class="field">
+              <label for="premierB">Premier session B</label>
+              <select id="premierB"></select>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="socialInsights" class="platform-panel">
       <div class="card">
-        <h2>Compare Retros</h2>
-        <p class="desc">Pick an IP, then choose two <strong>completed</strong> retros to compare (optionally filter by type).</p>
+        <h2>Compare Social Retros</h2>
+        <p class="desc">Pick an IP and <strong>2–4 completed</strong> social pieces. AI compares analytics + retro insights and picks a winner (60% retro / 40% analytics blend).</p>
         <div class="grid-2">
           <div class="field">
-            <label for="ipFilter">IP</label>
-            <select id="ipFilter"><option value="">Loading…</option></select>
+            <label for="socialIpFilter">IP</label>
+            <select id="socialIpFilter"><option value="">Loading…</option></select>
           </div>
           <div class="field">
-            <label for="typeFilter">Type (optional)</label>
-            <select id="typeFilter">
+            <label for="socialTypeFilter">Type (optional)</label>
+            <select id="socialTypeFilter">
               <option value="">All types</option>
-              <option value="long_form">Long-form</option>
-              <option value="shorts_reels">Shorts/Reels</option>
-              <option value="podcast">Podcast</option>
+              <option value="reel">Reel</option>
+              <option value="carousel">Carousel</option>
+              <option value="story">Story</option>
+              <option value="post">Post</option>
             </select>
           </div>
           <div class="field">
-            <label for="retroOlder">Retro A (older)</label>
-            <select id="retroOlder"><option value="">Select IP first</option></select>
+            <label for="socialRetro1">Piece 1</label>
+            <select id="socialRetro1"><option value="">Select IP first</option></select>
           </div>
           <div class="field">
-            <label for="retroNewer">Retro B (newer)</label>
-            <select id="retroNewer"><option value="">Select IP first</option></select>
+            <label for="socialRetro2">Piece 2</label>
+            <select id="socialRetro2"><option value="">Select IP first</option></select>
+          </div>
+          <div class="field">
+            <label for="socialRetro3">Piece 3 (optional)</label>
+            <select id="socialRetro3"><option value="">Optional</option></select>
+          </div>
+          <div class="field">
+            <label for="socialRetro4">Piece 4 (optional)</label>
+            <select id="socialRetro4"><option value="">Optional</option></select>
           </div>
         </div>
         <div class="actions">
-          <button id="analyzeBtn" class="btn btn-primary">Run analysis</button>
+          <button id="analyzeSocialBtn" class="btn btn-primary">Run social analysis</button>
         </div>
       </div>
-    </section>
-
-    <!-- Mode 2: Retro + Premier combined -->
-    <section class="panel" data-mode="combined">
-      <div class="card">
-        <h2>Retro + Premier Combined</h2>
-        <p class="desc">Select 2 retros (older → newer) and 2 Premier sessions to check if learnings were implemented.</p>
-        <div class="grid-2">
-          <div class="field">
-            <label for="combinedRetroA">Retro A (older)</label>
-            <select id="combinedRetroA"></select>
-          </div>
-          <div class="field">
-            <label for="combinedRetroB">Retro B (newer)</label>
-            <select id="combinedRetroB"></select>
-          </div>
-          <div class="field">
-            <label for="combinedPremierA">Premier A (older)</label>
-            <select id="combinedPremierA"></select>
-          </div>
-          <div class="field">
-            <label for="combinedPremierB">Premier B (newer)</label>
-            <select id="combinedPremierB"></select>
-          </div>
-        </div>
-        <div class="actions">
-          <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Mode 3: Compare Premier only -->
-    <section class="panel" data-mode="premiers">
-      <div class="card">
-        <h2>Compare Premier Feedback</h2>
-        <p class="desc">Compare reviewer feedback across two Premier sessions — copy results (no Slack publish).</p>
-        <div class="grid-2">
-          <div class="field">
-            <label for="premierA">Premier session A</label>
-            <select id="premierA"></select>
-          </div>
-          <div class="field">
-            <label for="premierB">Premier session B</label>
-            <select id="premierB"></select>
-          </div>
-        </div>
-        <div class="actions">
-          <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
-        </div>
-      </div>
-    </section>
+    </div>
 
     <div id="actionError" class="error"></div>
 
     <div class="card result-card">
       <h2>Insights</h2>
-      <p class="desc">Structured comparison always shown. Add a valid <code>OPENAI_API_KEY</code> in <code>.env</code> for AI verdict (optional).</p>
+      <p class="desc">Structured comparison always shown. Add a valid <code>OPENAI_API_KEY</code> for AI analysis and winner verdict.</p>
       <textarea id="analysis" placeholder="Run an analysis to see insights here…"></textarea>
       <div class="actions">
         <button id="publishBtn" class="btn btn-success" disabled>Publish to Slack thread</button>

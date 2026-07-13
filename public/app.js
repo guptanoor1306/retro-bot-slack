@@ -1,9 +1,11 @@
 const state = {
   retros: [],
   premiers: [],
-  ips: [],
+  youtubeIps: [],
+  socialIps: [],
   publishRetroId: null,
   mode: 'retros',
+  platform: 'youtube',
 };
 
 const $ = (id) => document.getElementById(id);
@@ -15,39 +17,63 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+function setPlatform(platform) {
+  state.platform = platform;
+  document.querySelectorAll('.platform-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.platform === platform);
+  });
+  $('youtubeInsights').classList.toggle('active', platform === 'youtube');
+  $('socialInsights').classList.toggle('active', platform === 'social');
+  $('publishBtn').style.display = '';
+  $('copyBtn').style.display = platform === 'youtube' && state.mode === 'premiers' ? '' : 'none';
+  $('actionError').textContent = '';
+}
+
 function setMode(mode) {
   state.mode = mode;
-  document.querySelectorAll('.tab').forEach((t) => {
+  document.querySelectorAll('#youtubeInsights .tab').forEach((t) => {
     t.classList.toggle('active', t.dataset.mode === mode);
   });
-  document.querySelectorAll('.panel').forEach((p) => {
+  document.querySelectorAll('#youtubeInsights .panel').forEach((p) => {
     p.classList.toggle('active', p.dataset.mode === mode);
   });
-  $('publishBtn').style.display = mode === 'premiers' ? 'none' : '';
+  $('publishBtn').style.display = state.platform === 'social' ? '' : (mode === 'premiers' ? 'none' : '');
   $('copyBtn').style.display = mode === 'premiers' ? '' : 'none';
   $('actionError').textContent = '';
 }
 
+function retrosForPlatform(platform) {
+  return state.retros.filter((r) => (r.platform || 'youtube') === platform);
+}
+
 async function loadData() {
   try {
-    const [ipsRes, retroRes, premierRes] = await Promise.all([
-      fetch('/api/ips'),
+    const [youtubeIpsRes, socialIpsRes, retroRes, premierRes] = await Promise.all([
+      fetch('/api/ips?platform=youtube'),
+      fetch('/api/ips?platform=social'),
       fetch('/api/retros'),
       fetch('/api/premier/sessions'),
     ]);
-    const ipsData = await ipsRes.json();
+    const youtubeIpsData = await youtubeIpsRes.json();
+    const socialIpsData = await socialIpsRes.json();
     const retroData = await retroRes.json();
     const premierData = await premierRes.json();
 
-    state.ips = ipsData.ips || [];
+    state.youtubeIps = youtubeIpsData.ips || [];
+    state.socialIps = socialIpsData.ips || [];
     state.retros = retroData;
     state.premiers = premierData.items || [];
 
-    $('ipFilter').innerHTML = state.ips.length
-      ? state.ips.map((ip) => `<option value="${ip}">${ip}</option>`).join('')
-      : '<option value="">No IPs yet</option>';
+    $('ipFilter').innerHTML = state.youtubeIps.length
+      ? state.youtubeIps.map((ip) => `<option value="${ip}">${ip}</option>`).join('')
+      : '<option value="">No YouTube IPs yet</option>';
+
+    $('socialIpFilter').innerHTML = state.socialIps.length
+      ? state.socialIps.map((ip) => `<option value="${ip}">${ip}</option>`).join('')
+      : '<option value="">No Social IPs yet</option>';
 
     fillRetroSelects();
+    fillSocialRetroSelects();
     fillPremierSelects();
   } catch (e) {
     $('actionError').textContent = e.message;
@@ -55,10 +81,11 @@ async function loadData() {
 }
 
 function retroOptions(filter = {}) {
-  return state.retros
+  return retrosForPlatform(filter.platform || 'youtube')
     .filter((r) => {
       if (filter.ip && r.ip_name !== filter.ip) return false;
       if (filter.status && r.status !== filter.status) return false;
+      if (filter.video_type && r.video_type !== filter.video_type) return false;
       return true;
     })
     .map(
@@ -86,7 +113,20 @@ function completedRetrosForFilter() {
   const ip = $('ipFilter')?.value;
   const type = $('typeFilter')?.value;
   if (!ip) return [];
-  return state.retros
+  return retrosForPlatform('youtube')
+    .filter(
+      (r) => r.ip_name === ip && r.status === 'complete' && (!type || r.video_type === type),
+    )
+    .sort((a, b) =>
+      (b.completed_at || b.release_date).localeCompare(a.completed_at || a.release_date),
+    );
+}
+
+function completedSocialRetrosForFilter() {
+  const ip = $('socialIpFilter')?.value;
+  const type = $('socialTypeFilter')?.value;
+  if (!ip) return [];
+  return retrosForPlatform('social')
     .filter(
       (r) => r.ip_name === ip && r.status === 'complete' && (!type || r.video_type === type),
     )
@@ -117,9 +157,31 @@ function fillCompareRetroSelects() {
   }
 }
 
+function fillSocialRetroSelects() {
+  const retros = completedSocialRetrosForFilter();
+  const itemOpts = retros.length
+    ? retros.map((r) => `<option value="${r.retro_id}">${retroOptionLabel(r)}</option>`).join('')
+    : '';
+
+  ['socialRetro1', 'socialRetro2', 'socialRetro3', 'socialRetro4'].forEach((id, index) => {
+    const el = $(id);
+    if (!el) return;
+    const prev = el.value;
+    const prefix = index < 2
+      ? (itemOpts || '<option value="">No completed social retros</option>')
+      : `<option value="">—</option>${itemOpts}`;
+    el.innerHTML = prefix;
+    if (prev && retros.some((r) => r.retro_id === prev)) {
+      el.value = prev;
+    } else if (index < retros.length) {
+      el.value = retros[index].retro_id;
+    }
+  });
+}
+
 function fillRetroSelects() {
   fillCompareRetroSelects();
-  const all = retroOptions();
+  const all = retroOptions({ platform: 'youtube' });
   if ($('combinedRetroA')) $('combinedRetroA').innerHTML = all || '<option value="">No retros</option>';
   if ($('combinedRetroB')) $('combinedRetroB').innerHTML = all || '<option value="">No retros</option>';
 }
@@ -160,13 +222,45 @@ async function runRetroCompare() {
     $('analysis').value = data.analysis;
     state.publishRetroId = data.publish_retro_id;
     $('publishBtn').disabled = !data.can_publish;
-    if (!data.can_publish && data.comparison?.has_pair) {
-      $('actionError').textContent = 'Comparison ready but newer retro has no Slack thread yet.';
-    }
   } catch (e) {
     $('actionError').textContent = e.message;
   } finally {
     $('analyzeBtn').disabled = false;
+  }
+}
+
+async function runSocialCompare() {
+  $('actionError').textContent = '';
+  const retroIds = ['socialRetro1', 'socialRetro2', 'socialRetro3', 'socialRetro4']
+    .map((id) => $(id).value)
+    .filter(Boolean);
+  const unique = [...new Set(retroIds)];
+
+  if (unique.length < 2) {
+    $('actionError').textContent = 'Select at least 2 social retros to compare.';
+    return;
+  }
+  if (unique.length !== retroIds.length) {
+    $('actionError').textContent = 'Each piece must be a different retro.';
+    return;
+  }
+
+  $('analyzeSocialBtn').disabled = true;
+  try {
+    const res = await fetch('/api/analyze/social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ retro_ids: unique }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    $('analysis').value = data.analysis;
+    state.publishRetroId = data.publish_retro_id;
+    $('publishBtn').disabled = !data.can_publish;
+  } catch (e) {
+    $('actionError').textContent = e.message;
+  } finally {
+    $('analyzeSocialBtn').disabled = false;
   }
 }
 
@@ -246,22 +340,26 @@ function copyInsights() {
   });
 }
 
-document.querySelectorAll('.tab').forEach((tab) => {
+document.querySelectorAll('.platform-tab').forEach((tab) => {
+  tab.addEventListener('click', () => setPlatform(tab.dataset.platform));
+});
+
+document.querySelectorAll('#youtubeInsights .tab').forEach((tab) => {
   tab.addEventListener('click', () => setMode(tab.dataset.mode));
 });
 
-$('ipFilter')?.addEventListener('change', () => {
-  fillRetroSelects();
-});
-$('typeFilter')?.addEventListener('change', () => {
-  fillCompareRetroSelects();
-});
+$('ipFilter')?.addEventListener('change', () => fillRetroSelects());
+$('typeFilter')?.addEventListener('change', () => fillCompareRetroSelects());
+$('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
+$('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);
+$('analyzeSocialBtn')?.addEventListener('click', runSocialCompare);
 $('analyzeCombinedBtn')?.addEventListener('click', runCombinedCompare);
 $('analyzePremierBtn')?.addEventListener('click', runPremierCompare);
 $('publishBtn')?.addEventListener('click', publishToSlack);
 $('copyBtn')?.addEventListener('click', copyInsights);
 
+setPlatform('youtube');
 setMode('retros');
 loadData();

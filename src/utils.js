@@ -2,6 +2,45 @@ const { v4: uuidv4 } = require('uuid');
 
 const MIN_POD_MEMBERS = 4;
 const MAX_POD_MEMBERS = 10;
+const SOCIAL_MIN_POD_MEMBERS = 1;
+const SOCIAL_MAX_POD_MEMBERS = 8;
+
+const PLATFORMS = {
+  youtube: 'YouTube',
+  social: 'Social',
+};
+
+const SOCIAL_TYPES = {
+  reel: 'Reel',
+  carousel: 'Carousel',
+  story: 'Story',
+  post: 'Post',
+};
+
+const SOCIAL_ANALYTICS_BY_TYPE = {
+  reel: [
+    { key: 'skip_rate', label: 'Skip Rate' },
+    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'like_rate', label: 'Like Rate' },
+  ],
+  carousel: [
+    { key: 'skip_rate', label: 'Skip Rate' },
+    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'like_rate', label: 'Like Rate' },
+  ],
+  post: [
+    { key: 'skip_rate', label: 'Skip Rate' },
+    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'like_rate', label: 'Like Rate' },
+  ],
+  story: [
+    { key: 'swipe_away_rate', label: 'Swipe Away Rate' },
+    { key: 'completion_rate', label: 'Completion Rate' },
+  ],
+};
+
+const SOCIAL_MAX_COMPARE = 4;
+const DEFAULT_SOCIAL_ANALYTICS_WEIGHT = 0.4;
 
 const LEGACY_ROLES = ['writer', 'editor', 'designer', 'sound_designer'];
 
@@ -111,8 +150,54 @@ function retroOpenDate(releaseDate) {
   return addDaysIST(releaseDate, 1);
 }
 
+function getRetroPlatform(retro) {
+  return retro.platform || 'youtube';
+}
+
+function isSocialRetro(retro) {
+  return getRetroPlatform(retro) === 'social';
+}
+
+function getPodMemberLimits(platform) {
+  if (platform === 'social') {
+    return { min: SOCIAL_MIN_POD_MEMBERS, max: SOCIAL_MAX_POD_MEMBERS };
+  }
+  return { min: MIN_POD_MEMBERS, max: MAX_POD_MEMBERS };
+}
+
+function getSocialAnalyticsFields(contentType) {
+  return SOCIAL_ANALYTICS_BY_TYPE[contentType] || [];
+}
+
+function formatContentType(type, platform = 'youtube') {
+  if (platform === 'social') return SOCIAL_TYPES[type] || type || '';
+  return VIDEO_TYPES[type] || type || '';
+}
+
+function formatRetroTypeLabel(retro) {
+  return formatContentType(retro.video_type, getRetroPlatform(retro));
+}
+
 function formatVideoType(type) {
   return VIDEO_TYPES[type] || type || '';
+}
+
+function formatPlatformLabel(platform) {
+  return PLATFORMS[platform] || platform || 'YouTube';
+}
+
+function parseAnalyticsJson(raw) {
+  if (!raw) return {};
+  try {
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return data && typeof data === 'object' ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function serializeAnalyticsJson(data) {
+  return JSON.stringify(data || {});
 }
 
 function generateId(prefix) {
@@ -170,12 +255,28 @@ function formatThreadTsForSheet(ts) {
 module.exports = {
   MIN_POD_MEMBERS,
   MAX_POD_MEMBERS,
+  SOCIAL_MIN_POD_MEMBERS,
+  SOCIAL_MAX_POD_MEMBERS,
+  PLATFORMS,
+  SOCIAL_TYPES,
+  SOCIAL_ANALYTICS_BY_TYPE,
+  SOCIAL_MAX_COMPARE,
+  DEFAULT_SOCIAL_ANALYTICS_WEIGHT,
   LEGACY_ROLES,
   LEGACY_ROLE_LABELS,
   VIDEO_TYPES,
   REMINDER_INTERVAL_HOURS,
   MAX_REMINDER_ROUNDS,
   CREATOR_ESCALATION_HOURS,
+  getRetroPlatform,
+  isSocialRetro,
+  getPodMemberLimits,
+  getSocialAnalyticsFields,
+  formatContentType,
+  formatRetroTypeLabel,
+  formatPlatformLabel,
+  parseAnalyticsJson,
+  serializeAnalyticsJson,
   podMemberRoleKey,
   podMemberLabel,
   parsePodMemberIds,

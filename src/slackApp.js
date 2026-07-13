@@ -4,12 +4,12 @@ const {
   nowISO,
   logError,
   logInfo,
-  MIN_POD_MEMBERS,
   getPodMemberSlots,
+  getPodMemberLimits,
   serializePodMemberIds,
+  isSocialRetro,
   parseActionValue,
   normalizeSlackTs,
-  retroOpenDate,
 } = require('./utils');
 const {
   createRetro,
@@ -20,13 +20,19 @@ const {
   getResponseByRole,
 } = require('./sheets');
 const {
-  buildCreateRetroModal,
+  buildPlatformPickerModal,
+  buildCreateYoutubeRetroModal,
+  buildCreateSocialRetroModal,
   buildFillRetroModal,
   parseCreateRetroSubmission,
   parseFillRetroSubmission,
+  validateSocialFillSubmission,
   buildRetroScheduledSuccessView,
-  CREATE_RETRO_CALLBACK,
-  FILL_RETRO_CALLBACK,
+  PLATFORM_PICK_CALLBACK,
+  CREATE_YOUTUBE_RETRO_CALLBACK,
+  CREATE_SOCIAL_RETRO_CALLBACK,
+  FILL_YOUTUBE_RETRO_CALLBACK,
+  FILL_SOCIAL_RETRO_CALLBACK,
 } = require('./views');
 const {
   buildRetroOpenedMessage,
@@ -52,13 +58,106 @@ function createSlackApp() {
   return app;
 }
 
+async function scheduleRetroFromSubmission({ ack, body, view, client, platform }) {
+  const { min, max } = getPodMemberLimits(platform);
+  const data = parseCreateRetroSubmission(view, { platform, maxMembers: max });
+
+  if (!data.video_name || !data.ip_name || !data.release_date || !data.video_type) {
+    const errors = {};
+    if (!data.video_name) errors.video_name_block = 'Title is required';
+    if (!data.ip_name) errors.ip_name_block = 'IP name is required';
+    if (!data.video_type) errors.video_type_block = 'Type is required';
+    if (!data.release_date) errors.release_date_block = 'Release date is required';
+    await ack({ response_action: 'errors', errors });
+    return;
+  }
+
+  if (data.pod_member_ids.length < min) {
+    await ack({
+      response_action: 'errors',
+      errors: {
+        [`pod_member_${min}_block`]: `Add at least ${min} POD member${min > 1 ? 's' : ''}`,
+      },
+    });
+    return;
+  }
+
+  if (new Set(data.pod_member_ids).size !== data.pod_member_ids.length) {
+    await ack({
+      response_action: 'errors',
+      errors: { pod_member_1_block: 'Each POD member must be a different person' },
+    });
+    return;
+  }
+
+  let dmSent = false;
+  try {
+    const retro = {
+      retro_id: generateId('retro'),
+      video_name: data.video_name,
+      ip_name: data.ip_name,
+      platform: data.platform,
+      video_type: data.video_type,
+      release_date: data.release_date,
+      pod_member_ids: serializePodMemberIds(data.pod_member_ids),
+      writer_slack_id: '',
+      editor_slack_id: '',
+      designer_slack_id: '',
+      sound_slack_id: '',
+      created_by: body.user.id,
+      status: 'scheduled',
+      open_trigger: '',
+      channel_id: '',
+      thread_ts: '',
+      created_at: nowISO(),
+      opened_at: '',
+      completed_at: '',
+      reminder_count: '0',
+      creator_notified_at: '',
+    };
+
+    await createRetro(retro);
+
+    try {
+      await client.chat.postMessage({
+        channel: body.user.id,
+        ...buildRetroScheduledConfirmation(retro),
+      });
+      dmSent = true;
+    } catch (dmError) {
+      logError('schedule retro DM', dmError);
+      const meta = JSON.parse(view.private_metadata || '{}');
+      if (meta.channel_id) {
+        await client.chat.postEphemeral({
+          channel: meta.channel_id,
+          user: body.user.id,
+          text: `Retro scheduled for *${retro.video_name}*. Open *Messages → Retro Master* to get the *Open Retro Now* button.`,
+        });
+      }
+    }
+
+    await ack({
+      response_action: 'update',
+      view: buildRetroScheduledSuccessView(retro, { dmSent }),
+    });
+
+    logInfo('Retro scheduled', { retro_id: retro.retro_id, platform, dmSent });
+  } catch (error) {
+    logError('create retro submission', error);
+    await ack({
+      response_action: 'errors',
+      errors: { video_name_block: `Could not save retro: ${error.message}` },
+    });
+  }
+}
+
 function registerHandlers(app) {
   app.command('/retro', async ({ ack, body, client }) => {
     await ack();
     try {
       await client.views.open({
         trigger_id: body.trigger_id,
-        view: buildCreateRetroModal({
+        view: buildPlatformPickerModal({
           channelId: body.channel_id,
           userId: body.user_id,
         }),
@@ -68,95 +167,30 @@ function registerHandlers(app) {
     }
   });
 
-  app.view(CREATE_RETRO_CALLBACK, async ({ ack, body, view, client }) => {
-    const data = parseCreateRetroSubmission(view);
-
-    if (!data.video_name || !data.ip_name || !data.release_date || !data.video_type) {
-      const errors = {};
-      if (!data.video_name) errors.video_name_block = 'Video name is required';
-      if (!data.ip_name) errors.ip_name_block = 'IP name is required';
-      if (!data.video_type) errors.video_type_block = 'Video type is required';
-      if (!data.release_date) errors.release_date_block = 'Release date is required';
-      await ack({ response_action: 'errors', errors });
-      return;
-    }
-
-    if (data.pod_member_ids.length < MIN_POD_MEMBERS) {
+  app.view(PLATFORM_PICK_CALLBACK, async ({ ack, body, view }) => {
+    const platform = view.state.values.platform_block.platform.selected_option?.value;
+    if (!platform) {
       await ack({
         response_action: 'errors',
-        errors: {
-          [`pod_member_${MIN_POD_MEMBERS}_block`]: `Add at least ${MIN_POD_MEMBERS} POD members`,
-        },
+        errors: { platform_block: 'Select a platform' },
       });
       return;
     }
 
-    if (new Set(data.pod_member_ids).size !== data.pod_member_ids.length) {
-      await ack({
-        response_action: 'errors',
-        errors: { pod_member_1_block: 'Each POD member must be a different person' },
-      });
-      return;
-    }
+    const meta = JSON.parse(view.private_metadata || '{}');
+    const nextView = platform === 'social'
+      ? buildCreateSocialRetroModal(meta)
+      : buildCreateYoutubeRetroModal(meta);
 
-    let dmSent = false;
-    try {
-      const retro = {
-        retro_id: generateId('retro'),
-        video_name: data.video_name,
-        ip_name: data.ip_name,
-        video_type: data.video_type,
-        release_date: data.release_date,
-        pod_member_ids: serializePodMemberIds(data.pod_member_ids),
-        writer_slack_id: '',
-        editor_slack_id: '',
-        designer_slack_id: '',
-        sound_slack_id: '',
-        created_by: body.user.id,
-        status: 'scheduled',
-        open_trigger: '',
-        channel_id: '',
-        thread_ts: '',
-        created_at: nowISO(),
-        opened_at: '',
-        completed_at: '',
-        reminder_count: '0',
-        creator_notified_at: '',
-      };
+    await ack({ response_action: 'push', view: nextView });
+  });
 
-      await createRetro(retro);
+  app.view(CREATE_YOUTUBE_RETRO_CALLBACK, async (args) => {
+    await scheduleRetroFromSubmission({ ...args, platform: 'youtube' });
+  });
 
-      try {
-        await client.chat.postMessage({
-          channel: body.user.id,
-          ...buildRetroScheduledConfirmation(retro),
-        });
-        dmSent = true;
-      } catch (dmError) {
-        logError('schedule retro DM', dmError);
-        const meta = JSON.parse(view.private_metadata || '{}');
-        if (meta.channel_id) {
-          await client.chat.postEphemeral({
-            channel: meta.channel_id,
-            user: body.user.id,
-            text: `Retro scheduled for *${retro.video_name}*. Open *Messages → Retro Master* to get the *Open Retro Now* button.`,
-          });
-        }
-      }
-
-      await ack({
-        response_action: 'update',
-        view: buildRetroScheduledSuccessView(retro, { dmSent }),
-      });
-
-      logInfo('Retro scheduled', { retro_id: retro.retro_id, dmSent });
-    } catch (error) {
-      logError('create retro submission', error);
-      await ack({
-        response_action: 'errors',
-        errors: { video_name_block: `Could not save retro: ${error.message}` },
-      });
-    }
+  app.view(CREATE_SOCIAL_RETRO_CALLBACK, async (args) => {
+    await scheduleRetroFromSubmission({ ...args, platform: 'social' });
   });
 
   app.action('open_retro_now', async ({ ack, body, client, action }) => {
@@ -253,6 +287,8 @@ function registerHandlers(app) {
           videoName: retro.video_name,
           channelId: payload.channel_id || retro.channel_id,
           threadTs: normalizeSlackTs(payload.thread_ts || retro.thread_ts),
+          platform: isSocialRetro(retro) ? 'social' : 'youtube',
+          contentType: retro.video_type,
         }),
       });
     } catch (error) {
@@ -260,10 +296,16 @@ function registerHandlers(app) {
     }
   });
 
-  app.view(FILL_RETRO_CALLBACK, async ({ ack, body, view, client }) => {
+  async function handleFillSubmit({ ack, body, view, client, platform }) {
     const data = parseFillRetroSubmission(view);
 
-    if (!data.good || !data.bad || !data.action_items) {
+    if (platform === 'social') {
+      const errors = validateSocialFillSubmission(view);
+      if (Object.keys(errors).length > 0) {
+        await ack({ response_action: 'errors', errors });
+        return;
+      }
+    } else if (!data.good || !data.bad || !data.action_items) {
       const errors = {};
       if (!data.good) errors.good_block = 'Please describe what was good';
       if (!data.bad) errors.bad_block = 'Please describe what was bad';
@@ -298,6 +340,7 @@ function registerHandlers(app) {
         good: data.good,
         bad: data.bad,
         action_items: data.action_items,
+        analytics_json: data.analytics_json || '',
         submitted_at: nowISO(),
       };
 
@@ -311,7 +354,7 @@ function registerHandlers(app) {
           channel: channelId,
           thread_ts: threadTs,
           reply_broadcast: false,
-          ...buildResponseThreadMessage(data.role, response),
+          ...buildResponseThreadMessage(data.role, response, retro),
         });
 
         const allResponses = await getResponsesForRetro(data.retro_id);
@@ -332,10 +375,19 @@ function registerHandlers(app) {
       logInfo('Retro response submitted', {
         retro_id: data.retro_id,
         role: data.role,
+        platform,
       });
     } catch (error) {
       logError('fill retro submission', error);
     }
+  }
+
+  app.view(FILL_YOUTUBE_RETRO_CALLBACK, async (args) => {
+    await handleFillSubmit({ ...args, platform: 'youtube' });
+  });
+
+  app.view(FILL_SOCIAL_RETRO_CALLBACK, async (args) => {
+    await handleFillSubmit({ ...args, platform: 'social' });
   });
 
   app.error((error) => {

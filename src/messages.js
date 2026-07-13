@@ -1,10 +1,24 @@
 const {
   getPodMemberSlots,
   formatMemberLabel,
-  formatVideoType,
+  formatRetroTypeLabel,
+  formatPlatformLabel,
+  getRetroPlatform,
+  isSocialRetro,
+  getSocialAnalyticsFields,
+  parseAnalyticsJson,
   retroOpenDate,
   MAX_REMINDER_ROUNDS,
 } = require('./utils');
+
+function buildRetroTitleLine(retro, { complete = false } = {}) {
+  const platform = formatPlatformLabel(getRetroPlatform(retro));
+  const typeLabel = formatRetroTypeLabel(retro);
+  const prefix = isSocialRetro(retro) ? `[${platform} · ${typeLabel}]` : `[${platform} · ${typeLabel}]`;
+  return complete
+    ? `*Retro complete:* ${prefix} ${retro.video_name} :white_check_mark:`
+    : `*Retro opened:* ${prefix} ${retro.video_name}`;
+}
 
 function buildAssigneesText(retro) {
   const slots = getPodMemberSlots(retro);
@@ -13,16 +27,12 @@ function buildAssigneesText(retro) {
 }
 
 function buildRetroParentText(retro, { complete = false } = {}) {
-  const typeLabel = formatVideoType(retro.video_type);
   const memberCount = getPodMemberSlots(retro).length;
   const lines = [
-    complete
-      ? `*Retro complete:* ${retro.video_name} :white_check_mark:`
-      : `*Retro opened:* ${retro.video_name}`,
+    buildRetroTitleLine(retro, { complete }),
     `*IP:* ${retro.ip_name}`,
-    typeLabel ? `*Type:* ${typeLabel}` : null,
     `*Release Date:* ${retro.release_date}`,
-  ].filter(Boolean);
+  ];
 
   if (!complete) {
     const assignees = buildAssigneesText(retro);
@@ -128,31 +138,55 @@ function buildCreatorEscalationMessage(retro, pendingSlots) {
   };
 }
 
-function buildResponseThreadMessage(role, response) {
+function formatAnalyticsSummary(response, contentType) {
+  const analytics = parseAnalyticsJson(response.analytics_json);
+  const lines = getSocialAnalyticsFields(contentType).map((metric) => {
+    const value = analytics[metric.key] || '_n/a_';
+    const insight = analytics[`${metric.key}_insight`] || '_n/a_';
+    return `*${metric.label}:* ${value}\n_${insight}_`;
+  });
+  return lines.join('\n');
+}
+
+function buildResponseThreadMessage(role, response, retro = null) {
   const memberLabel = formatMemberLabel(role);
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${memberLabel}* (<@${response.user_slack_id}>) submitted their retro`,
+      },
+    },
+  ];
+
+  if (retro && isSocialRetro(retro)) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Analytics*\n${formatAnalyticsSummary(response, retro.video_type)}`,
+      },
+    });
+  }
+
+  blocks.push(
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*What was good?*\n${response.good}` },
+        { type: 'mrkdwn', text: `*What was bad?*\n${response.bad}` },
+      ],
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Action Items*\n${response.action_items}` },
+    },
+  );
 
   return {
     text: `${memberLabel} retro submitted`,
-    blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*${memberLabel}* (<@${response.user_slack_id}>) submitted their retro`,
-        },
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*What was good?*\n${response.good}` },
-          { type: 'mrkdwn', text: `*What was bad?*\n${response.bad}` },
-        ],
-      },
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*Action Items*\n${response.action_items}` },
-      },
-    ],
+    blocks,
   };
 }
 
@@ -186,7 +220,8 @@ function buildRetroCompleteMessage(retro, responses) {
 
 function buildRetroScheduledConfirmation(retro) {
   const openDate = retroOpenDate(retro.release_date);
-  const typeLabel = formatVideoType(retro.video_type);
+  const typeLabel = formatRetroTypeLabel(retro);
+  const platformLabel = formatPlatformLabel(getRetroPlatform(retro));
   const payload = JSON.stringify({ retro_id: retro.retro_id });
 
   return {
@@ -198,6 +233,7 @@ function buildRetroScheduledConfirmation(retro) {
           type: 'mrkdwn',
           text: [
             `Retro scheduled for *${retro.video_name}*`,
+            `*Platform:* ${platformLabel}`,
             `*IP:* ${retro.ip_name}`,
             typeLabel ? `*Type:* ${typeLabel}` : null,
             `*Release Date:* ${retro.release_date}`,
@@ -239,8 +275,9 @@ function buildRetroOpenedConfirmation(retro) {
   };
 }
 
-function buildInsightsThreadMessage({ ipName, videoType, analysis }) {
-  const typeLabel = formatVideoType(videoType);
+function buildInsightsThreadMessage({ ipName, videoType, analysis, platform = 'youtube' }) {
+  const typeLabel = formatRetroTypeLabel({ video_type: videoType, platform });
+  const platformLabel = formatPlatformLabel(platform);
   return {
     text: `IP Learning Insights: ${ipName}`,
     blocks: [
@@ -250,7 +287,7 @@ function buildInsightsThreadMessage({ ipName, videoType, analysis }) {
           type: 'mrkdwn',
           text: [
             `:brain: IP Learning Insights`,
-            `IP: ${ipName}${typeLabel ? `  |  Type: ${typeLabel}` : ''}`,
+            `Platform: ${platformLabel}  |  IP: ${ipName}${typeLabel ? `  |  Type: ${typeLabel}` : ''}`,
             '',
             analysis,
           ].join('\n'),

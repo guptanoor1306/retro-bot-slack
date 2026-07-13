@@ -6,7 +6,7 @@ const RESPONSES_TAB = 'Responses';
 const MAPPINGS_TAB = 'PremierMappings';
 
 const RETROS_HEADERS = [
-  'retro_id', 'video_name', 'ip_name', 'video_type', 'release_date',
+  'retro_id', 'video_name', 'ip_name', 'platform', 'video_type', 'release_date',
   'writer_slack_id', 'editor_slack_id', 'designer_slack_id', 'sound_slack_id',
   'pod_member_ids',
   'created_by', 'status', 'open_trigger', 'channel_id', 'thread_ts',
@@ -15,7 +15,7 @@ const RETROS_HEADERS = [
 
 const RESPONSES_HEADERS = [
   'response_id', 'retro_id', 'role', 'user_slack_id',
-  'good', 'bad', 'action_items', 'submitted_at',
+  'good', 'bad', 'action_items', 'analytics_json', 'submitted_at',
 ];
 
 const MAPPINGS_HEADERS = [
@@ -231,19 +231,32 @@ async function getAllRetros() {
   return readTab(RETROS_TAB, RETROS_HEADERS);
 }
 
-async function getUniqueIpNames() {
+async function getUniqueIpNames({ platform } = {}) {
   const rows = await readTab(RETROS_TAB, RETROS_HEADERS);
-  const ips = [...new Set(rows.map((r) => r.ip_name).filter(Boolean))];
+  const ips = [...new Set(
+    rows
+      .filter((r) => {
+        if (!r.ip_name) return false;
+        if (!platform) return true;
+        const rowPlatform = r.platform || 'youtube';
+        return rowPlatform === platform;
+      })
+      .map((r) => r.ip_name),
+  )];
   return ips.sort((a, b) => a.localeCompare(b));
 }
 
-async function getRetrosByIp(ipName, { videoType, status } = {}) {
+async function getRetrosByIp(ipName, { videoType, status, platform } = {}) {
   const rows = await readTab(RETROS_TAB, RETROS_HEADERS);
   return rows
     .filter((r) => {
       if (!r.ip_name || r.ip_name.toLowerCase() !== ipName.toLowerCase()) return false;
       if (videoType && r.video_type !== videoType) return false;
       if (status && r.status !== status) return false;
+      if (platform) {
+        const rowPlatform = r.platform || 'youtube';
+        if (rowPlatform !== platform) return false;
+      }
       return true;
     })
     .sort((a, b) => (b.completed_at || b.release_date).localeCompare(a.completed_at || a.release_date));

@@ -9,11 +9,11 @@ const {
   getRetrosByIp,
   getRetroById,
 } = require('./src/sheets');
-const { compareRetrosByIp, compareTwoRetros, buildComparisonSummary } = require('./src/insights/compare');
+const { compareRetrosByIp, compareTwoRetros, compareSocialRetros, buildComparisonSummary } = require('./src/insights/compare');
 const { listAllEndedPremiers } = require('./src/insights/premier');
-const { analyzeRetroComparison, analyzeCombined, analyzePremierComparison } = require('./src/insights/analyze');
+const { analyzeRetroComparison, analyzeCombined, analyzePremierComparison, analyzeSocialComparison } = require('./src/insights/analyze');
 const { publishInsightsToThread } = require('./src/insights/slack');
-const { logError, logInfo, formatVideoType } = require('./src/utils');
+const { logError, logInfo, formatVideoType, formatRetroTypeLabel, getRetroPlatform } = require('./src/utils');
 
 const app = express();
 const PORT = process.env.PORT || process.env.INSIGHTS_PORT || 4000;
@@ -26,12 +26,15 @@ function asyncHandler(fn) {
 }
 
 function mapRetro(r) {
+  const platform = getRetroPlatform(r);
   return {
     retro_id: r.retro_id,
     video_name: r.video_name,
     ip_name: r.ip_name,
+    platform,
+    platform_label: platform === 'social' ? 'Social' : 'YouTube',
     video_type: r.video_type,
-    video_type_label: formatVideoType(r.video_type),
+    video_type_label: formatRetroTypeLabel(r),
     release_date: r.release_date,
     completed_at: r.completed_at,
     status: r.status,
@@ -40,8 +43,8 @@ function mapRetro(r) {
   };
 }
 
-app.get('/api/ips', asyncHandler(async (_req, res) => {
-  const ips = await getUniqueIpNames();
+app.get('/api/ips', asyncHandler(async (req, res) => {
+  const ips = await getUniqueIpNames({ platform: req.query.platform || '' });
   res.json({ ips });
 }));
 
@@ -55,6 +58,9 @@ app.get('/api/retros', asyncHandler(async (req, res) => {
   }
   if (req.query.video_type) {
     retros = retros.filter((r) => r.video_type === req.query.video_type);
+  }
+  if (req.query.platform) {
+    retros = retros.filter((r) => getRetroPlatform(r) === req.query.platform);
   }
   res.json(retros.map(mapRetro));
 }));
@@ -83,6 +89,20 @@ app.post('/api/analyze/retros', asyncHandler(async (req, res) => {
     analysis,
     publish_retro_id: comparison.publish_retro_id || null,
     can_publish: Boolean(comparison.has_pair && comparison.newer?.thread_ts),
+  });
+}));
+
+app.post('/api/analyze/social', asyncHandler(async (req, res) => {
+  const { retro_ids: retroIds = [] } = req.body;
+  const comparison = await compareSocialRetros(retroIds);
+  const analysis = await analyzeSocialComparison(comparison);
+  const publishTarget = comparison.items?.[comparison.items.length - 1];
+
+  res.json({
+    comparison,
+    analysis,
+    publish_retro_id: comparison.publish_retro_id || null,
+    can_publish: Boolean(publishTarget?.thread_ts),
   });
 }));
 

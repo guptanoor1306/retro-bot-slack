@@ -1,5 +1,5 @@
-const { logError, logInfo } = require('../utils');
-const { buildComparisonSummary } = require('./compare');
+const { logError, logInfo, DEFAULT_SOCIAL_ANALYTICS_WEIGHT } = require('../utils');
+const { buildComparisonSummary, buildSocialComparisonSummary } = require('./compare');
 const { formatPremierForPrompt, fetchPremierFeedback } = require('./premier');
 const { cleanAnalysisOutput, FORMAT_RULES } = require('./format');
 
@@ -201,6 +201,49 @@ Use ### headers for each numbered section. ${FORMAT_RULES}`;
   };
 }
 
+/** Social: compare 2–4 retros with weighted analytics + retro blend */
+async function analyzeSocialComparison(comparison) {
+  const summary = buildSocialComparisonSummary(comparison);
+  if (!comparison.has_comparison) return summary;
+
+  const analyticsWeight = parseFloat(process.env.SOCIAL_ANALYTICS_WEIGHT)
+    || DEFAULT_SOCIAL_ANALYTICS_WEIGHT;
+  const retroWeight = 1 - analyticsWeight;
+
+  const prompt = `Compare ${comparison.items.length} Instagram/social content retros for the same IP.
+
+${summary}
+
+Important context:
+- Retros are filled soon after release, so analytics may be early/incomplete — weight retro written insights higher when numbers look immature.
+- Scoring blend: approximately ${Math.round(retroWeight * 100)}% retro quality (good/bad/action items + metric insights) and ${Math.round(analyticsWeight * 100)}% analytics performance.
+
+Analyze in detail:
+1. Analytics comparison across all pieces (note which metrics lead/lag; flag stale-early data)
+2. Retro written insights — what each piece did well and poorly
+3. Action items quality and learning transfer across pieces
+4. Head-to-head ranking of all pieces with evidence
+5. ### Winner
+   Name the winning piece, confidence (High/Medium/Low), and why — using the weighted blend above
+
+Use ### headers for each numbered section. ${FORMAT_RULES}`;
+
+  try {
+    const ai = await callOpenAI(
+      'You compare social media content retros with analytics and qualitative feedback. Declare one clear winner. Output plain text with ### headers only.',
+      prompt,
+    );
+    if (ai) {
+      logInfo('AI social comparison generated');
+      return ai;
+    }
+    return `${summary}\n\n${aiFallbackNote()}`;
+  } catch (error) {
+    logError('analyzeSocialComparison', error);
+    return `${summary}\n\n${aiFallbackNote(error)}`;
+  }
+}
+
 /** Legacy */
 async function analyzeLearning({ comparison, premierData }) {
   return analyzeRetroComparison(comparison);
@@ -210,5 +253,6 @@ module.exports = {
   analyzeRetroComparison,
   analyzeCombined,
   analyzePremierComparison,
+  analyzeSocialComparison,
   analyzeLearning,
 };

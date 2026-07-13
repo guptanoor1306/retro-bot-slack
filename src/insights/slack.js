@@ -20,6 +20,7 @@ async function publishInsightsToThread({ retroId, analysis }) {
   const message = buildInsightsThreadMessage({
     ipName: retro.ip_name,
     videoType: retro.video_type,
+    platform: retro.platform || 'youtube',
     analysis: cleanAnalysisOutput(analysis),
   });
 
