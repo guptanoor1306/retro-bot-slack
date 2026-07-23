@@ -6,8 +6,9 @@ const {
   getRetroPlatform,
   isSocialRetro,
   getRetroChannelId,
-  getSocialAnalyticsFields,
   getSocialPlatform,
+  resolveSocialAnalyticsFields,
+  formatSocialAnalyticsMetricSummary,
   parseAnalyticsJson,
   retroOpenDate,
   MAX_REMINDER_ROUNDS,
@@ -151,11 +152,12 @@ function formatAnalyticsSummary(response, retro) {
   const analytics = parseAnalyticsJson(response.analytics_json);
   const socialPlatform = getSocialPlatform(retro) || 'instagram';
   const contentType = retro?.video_type;
-  const lines = getSocialAnalyticsFields(socialPlatform, contentType).map((metric) => {
-    const value = analytics[metric.key] || '_n/a_';
-    const insight = analytics[`${metric.key}_insight`] || '_n/a_';
-    return `*${metric.label}:* ${value}\n_${insight}_`;
+  const fields = resolveSocialAnalyticsFields({
+    socialPlatform,
+    contentType,
+    analytics,
   });
+  const lines = fields.map((metric) => formatSocialAnalyticsMetricSummary(metric, analytics));
   return lines.join('\n');
 }
 

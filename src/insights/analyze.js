@@ -216,6 +216,7 @@ ${summary}
 
 Important context:
 - Retros are filled soon after release, so analytics may be early/incomplete — weight retro written insights higher when numbers look immature.
+- Older retros may use a previous metric set; only compare metrics that appear in each piece's data.
 - Scoring blend: approximately ${Math.round(retroWeight * 100)}% retro quality (good/bad/action items + metric insights) and ${Math.round(analyticsWeight * 100)}% analytics performance.
 
 Analyze in detail:

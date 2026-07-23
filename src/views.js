@@ -9,6 +9,7 @@ const {
   SOCIAL_IP_OPTIONS,
   getSocialTypesForPlatform,
   getSocialAnalyticsFields,
+  metricRequiresInsight,
   retroOpenDate,
   formatRetroTypeLabel,
   formatPlatformLabel,
@@ -289,17 +290,19 @@ function buildSocialAnalyticsBlocks(socialPlatform, contentType) {
         placeholder: { type: 'plain_text', text: 'e.g. 42% or 1.2k' },
       },
     });
-    blocks.push({
-      type: 'input',
-      block_id: `${metric.key}_insight_block`,
-      label: { type: 'plain_text', text: `Insights on ${metric.label}` },
-      element: {
-        type: 'plain_text_input',
-        action_id: `${metric.key}_insight`,
-        multiline: true,
-        placeholder: { type: 'plain_text', text: 'What are your insights on this metric?' },
-      },
-    });
+    if (metricRequiresInsight(metric)) {
+      blocks.push({
+        type: 'input',
+        block_id: `${metric.key}_insight_block`,
+        label: { type: 'plain_text', text: `Insight on ${metric.label}` },
+        element: {
+          type: 'plain_text_input',
+          action_id: `${metric.key}_insight`,
+          multiline: true,
+          placeholder: { type: 'plain_text', text: 'What are your insights on this metric?' },
+        },
+      });
+    }
   }
 
   return blocks;
@@ -502,8 +505,10 @@ function parseFillSocialSubmission(view) {
 
   for (const metric of getSocialAnalyticsFields(socialPlatform, contentType)) {
     analytics[metric.key] = values[`${metric.key}_block`]?.[metric.key]?.value?.trim() || '';
-    analytics[`${metric.key}_insight`] =
-      values[`${metric.key}_insight_block`]?.[`${metric.key}_insight`]?.value?.trim() || '';
+    if (metricRequiresInsight(metric)) {
+      analytics[`${metric.key}_insight`] =
+        values[`${metric.key}_insight_block`]?.[`${metric.key}_insight`]?.value?.trim() || '';
+    }
   }
 
   return {
@@ -535,8 +540,9 @@ function validateSocialFillSubmission(view) {
     if (!values[`${metric.key}_block`]?.[metric.key]?.value?.trim()) {
       errors[`${metric.key}_block`] = `${metric.label} is required`;
     }
-    if (!values[`${metric.key}_insight_block`]?.[`${metric.key}_insight`]?.value?.trim()) {
-      errors[`${metric.key}_insight_block`] = `Insights on ${metric.label} are required`;
+    if (metricRequiresInsight(metric)
+      && !values[`${metric.key}_insight_block`]?.[`${metric.key}_insight`]?.value?.trim()) {
+      errors[`${metric.key}_insight_block`] = `Insight on ${metric.label} is required`;
     }
   }
   if (!values.good_block?.good?.value?.trim()) errors.good_block = 'Required';

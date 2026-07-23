@@ -4,8 +4,10 @@ const {
   formatVideoType,
   formatRetroTypeLabel,
   parseAnalyticsJson,
-  getSocialAnalyticsFields,
   getSocialPlatform,
+  resolveSocialAnalyticsFields,
+  mergeMemberAnalytics,
+  formatSocialAnalyticsMetricLine,
   SOCIAL_MAX_COMPARE,
 } = require('../utils');
 
@@ -24,12 +26,15 @@ function formatSocialRetroForAnalysis({ retro, responses }) {
     analytics: parseAnalyticsJson(r.analytics_json),
   }));
 
+  const socialPlatform = getSocialPlatform(retro);
+  const mergedAnalytics = mergeMemberAnalytics(members);
+
   return {
     retro_id: retro.retro_id,
     video_name: retro.video_name,
     ip_name: retro.ip_name,
     platform: 'social',
-    social_platform: getSocialPlatform(retro),
+    social_platform: socialPlatform,
     video_type: retro.video_type,
     video_type_label: formatRetroTypeLabel(retro),
     release_date: retro.release_date,
@@ -37,7 +42,11 @@ function formatSocialRetroForAnalysis({ retro, responses }) {
     channel_id: retro.channel_id,
     thread_ts: retro.thread_ts,
     members,
-    analytics_fields: getSocialAnalyticsFields(getSocialPlatform(retro), retro.video_type),
+    analytics_fields: resolveSocialAnalyticsFields({
+      socialPlatform,
+      contentType: retro.video_type,
+      analytics: mergedAnalytics,
+    }),
   };
 }
 
@@ -151,9 +160,7 @@ function buildSocialComparisonSummary(comparison) {
     for (const member of item.members) {
       lines.push(`${member.role}:`);
       for (const field of item.analytics_fields) {
-        const value = member.analytics?.[field.key] || 'n/a';
-        const insight = member.analytics?.[`${field.key}_insight`] || 'n/a';
-        lines.push(`  ${field.label}: ${value} — ${insight}`);
+        lines.push(`  ${formatSocialAnalyticsMetricLine(field, member.analytics)}`);
       }
       lines.push(`  Good: ${member.good}`);
       lines.push(`  Bad: ${member.bad}`);

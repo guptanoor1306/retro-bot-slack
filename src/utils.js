@@ -34,23 +34,30 @@ const SOCIAL_TYPES = INSTAGRAM_TYPES;
 
 const INSTAGRAM_ANALYTICS_BY_TYPE = {
   reel: [
-    { key: 'skip_rate', label: 'Skip Rate' },
-    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'skip_rate', label: 'Skip Rate', insight: true },
+    { key: 'share_rate', label: 'Share Rate', insight: true },
     { key: 'like_rate', label: 'Like Rate' },
+    { key: 'save_rate', label: 'Save Rate' },
+    { key: 'follow_rate', label: 'Follow Rate' },
+    { key: 'reach', label: 'Reach' },
   ],
   carousel: [
-    { key: 'skip_rate', label: 'Skip Rate' },
-    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'share_rate', label: 'Share Rate', insight: true },
+    { key: 'save_rate', label: 'Save Rate', insight: true },
     { key: 'like_rate', label: 'Like Rate' },
+    { key: 'follow_rate', label: 'Follow Rate' },
+    { key: 'reach', label: 'Reach' },
   ],
   post: [
-    { key: 'skip_rate', label: 'Skip Rate' },
-    { key: 'share_rate', label: 'Share Rate' },
+    { key: 'share_rate', label: 'Share Rate', insight: true },
+    { key: 'save_rate', label: 'Save Rate', insight: true },
     { key: 'like_rate', label: 'Like Rate' },
+    { key: 'follow_rate', label: 'Follow Rate' },
+    { key: 'reach', label: 'Reach' },
   ],
   story: [
-    { key: 'swipe_away_rate', label: 'Swipe Away Rate' },
-    { key: 'completion_rate', label: 'Completion Rate' },
+    { key: 'swipe_away_rate', label: 'Swipe Away Rate', insight: true },
+    { key: 'completion_rate', label: 'Completion Rate', insight: true },
   ],
 };
 
@@ -59,12 +66,29 @@ const LINKEDIN_ANALYTICS_BY_TYPE = {
     { key: 'impressions', label: 'Impressions' },
     { key: 'reactions', label: 'Reactions' },
     { key: 'comments', label: 'Comments' },
+    { key: 'reposts', label: 'Reposts' },
   ],
   reel: [
     { key: 'impressions', label: 'Impressions' },
     { key: 'reactions', label: 'Reactions' },
     { key: 'comments', label: 'Comments' },
+    { key: 'reposts', label: 'Reposts' },
   ],
+};
+
+const SOCIAL_METRIC_LABELS = {
+  skip_rate: 'Skip Rate',
+  share_rate: 'Share Rate',
+  like_rate: 'Like Rate',
+  save_rate: 'Save Rate',
+  follow_rate: 'Follow Rate',
+  reach: 'Reach',
+  swipe_away_rate: 'Swipe Away Rate',
+  completion_rate: 'Completion Rate',
+  impressions: 'Impressions',
+  reactions: 'Reactions',
+  comments: 'Comments',
+  reposts: 'Reposts',
 };
 
 /** @deprecated */
@@ -217,6 +241,73 @@ function getSocialAnalyticsFields(socialPlatform, contentType) {
   return INSTAGRAM_ANALYTICS_BY_TYPE[contentType] || [];
 }
 
+function getSocialMetricLabel(key) {
+  return SOCIAL_METRIC_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function metricRequiresInsight(metric) {
+  return metric.insight === true;
+}
+
+/** Current schema plus legacy metric keys present in stored analytics (skips empty new fields on old data). */
+function resolveSocialAnalyticsFields({ socialPlatform, contentType, analytics = {}, includeEmpty = false }) {
+  const current = getSocialAnalyticsFields(socialPlatform, contentType);
+  const seen = new Set();
+  const resolved = [];
+
+  const hasMetricData = (key) => {
+    const value = analytics[key];
+    const insight = analytics[`${key}_insight`];
+    return (value != null && String(value).trim() !== '')
+      || (insight != null && String(insight).trim() !== '');
+  };
+
+  for (const metric of current) {
+    if (includeEmpty || hasMetricData(metric.key)) {
+      resolved.push(metric);
+      seen.add(metric.key);
+    }
+  }
+
+  for (const key of Object.keys(analytics)) {
+    if (key.endsWith('_insight') || seen.has(key)) continue;
+    if (!hasMetricData(key)) continue;
+    seen.add(key);
+    resolved.push({
+      key,
+      label: getSocialMetricLabel(key),
+      insight: Boolean(String(analytics[`${key}_insight`] || '').trim()),
+      legacy: true,
+    });
+  }
+
+  return resolved.length ? resolved : current;
+}
+
+function mergeMemberAnalytics(members = []) {
+  return members.reduce((acc, member) => ({ ...acc, ...(member.analytics || {}) }), {});
+}
+
+function formatSocialAnalyticsMetricLine(metric, analytics = {}) {
+  const value = analytics[metric.key];
+  const displayValue = value == null || String(value).trim() === '' ? 'n/a' : String(value).trim();
+  const insight = analytics[`${metric.key}_insight`];
+  if (insight && String(insight).trim()) {
+    return `${metric.label}: ${displayValue} — ${String(insight).trim()}`;
+  }
+  return `${metric.label}: ${displayValue}`;
+}
+
+function formatSocialAnalyticsMetricSummary(metric, analytics = {}) {
+  const value = analytics[metric.key];
+  const displayValue = value == null || String(value).trim() === '' ? '_n/a_' : String(value).trim();
+  const insight = analytics[`${metric.key}_insight`];
+  if (insight && String(insight).trim()) {
+    return `*${metric.label}:* ${displayValue}\n_${String(insight).trim()}_`;
+  }
+  return `*${metric.label}:* ${displayValue}`;
+}
+
 function formatSocialPlatformLabel(socialPlatform) {
   return SOCIAL_PLATFORMS[socialPlatform] || socialPlatform || 'Instagram';
 }
@@ -355,6 +446,12 @@ module.exports = {
   getRetroChannelIdForPlatform,
   getPodMemberLimits,
   getSocialAnalyticsFields,
+  getSocialMetricLabel,
+  metricRequiresInsight,
+  resolveSocialAnalyticsFields,
+  mergeMemberAnalytics,
+  formatSocialAnalyticsMetricLine,
+  formatSocialAnalyticsMetricSummary,
   formatContentType,
   formatRetroTypeLabel,
   formatPlatformLabel,
