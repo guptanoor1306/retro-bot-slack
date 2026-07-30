@@ -156,15 +156,20 @@ function buildSocialComparisonSummary(comparison) {
   ];
 
   for (const item of comparison.items) {
-    lines.push(`--- ${item.video_name} (${item.release_date}) ---`);
+    const label = item.video_type_label ? ` · ${item.video_type_label}` : '';
+    lines.push(`--- ${item.video_name} (${item.release_date})${label} ---`);
     for (const member of item.members) {
-      lines.push(`${member.role}:`);
-      for (const field of item.analytics_fields) {
-        lines.push(`  ${formatSocialAnalyticsMetricLine(field, member.analytics)}`);
+      if (item.members.length > 1) lines.push(`${member.role}:`);
+      if (item.analytics_fields?.length) {
+        lines.push('Metrics:');
+        for (const field of item.analytics_fields) {
+          lines.push(`  ${formatSocialAnalyticsMetricLine(field, member.analytics)}`);
+        }
       }
-      lines.push(`  Good: ${member.good}`);
-      lines.push(`  Bad: ${member.bad}`);
-      lines.push(`  Action items: ${member.action_items}`);
+      lines.push('Retro:');
+      lines.push(`  Good: ${member.good || '(none)'}`);
+      lines.push(`  Bad: ${member.bad || '(none)'}`);
+      lines.push(`  Action items: ${member.action_items || '(none)'}`);
     }
     lines.push('');
   }
@@ -179,6 +184,20 @@ async function compareRetrosForIp(retroId) {
   return compareRetrosByIp(current.ip_name, current.video_type || '');
 }
 
+function formatRetroResponsesBlock(label, retro) {
+  const lines = [`${label}: ${retro.video_name} (${retro.release_date})`];
+  for (const role of retro.roles || []) {
+    lines.push(
+      `[${role.role}]`,
+      `Good: ${role.good || '(none)'}`,
+      `Bad: ${role.bad || '(none)'}`,
+      `Action items: ${role.action_items || '(none)'}`,
+      '',
+    );
+  }
+  return lines.join('\n').trim();
+}
+
 function buildComparisonSummary(comparison) {
   if (!comparison.has_pair) {
     return comparison.message || 'Not enough retros to compare.';
@@ -188,25 +207,13 @@ function buildComparisonSummary(comparison) {
   const newer = comparison.newer || comparison.latest;
   const typeLabel = comparison.video_type_label || formatVideoType(comparison.video_type);
 
-  const lines = [
+  return [
     `Retro comparison for ${comparison.ip_name}${typeLabel ? ` (${typeLabel})` : ''}`,
     '',
-    `Older: ${older.video_name} (${older.release_date})`,
-    `Newer: ${newer.video_name} (${newer.release_date})`,
+    formatRetroResponsesBlock('OLDER retro', older),
     '',
-    'Older retro action items:',
-  ];
-
-  for (const role of older.roles) {
-    lines.push(`${role.role}: ${role.action_items}`);
-  }
-
-  lines.push('', 'Newer retro what was bad:');
-  for (const role of newer.roles) {
-    lines.push(`${role.role}: ${role.bad}`);
-  }
-
-  return lines.join('\n');
+    formatRetroResponsesBlock('NEWER retro', newer),
+  ].join('\n');
 }
 
 module.exports = {

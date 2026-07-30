@@ -1,7 +1,7 @@
 const { logError, logInfo, DEFAULT_SOCIAL_ANALYTICS_WEIGHT } = require('../utils');
 const { buildComparisonSummary, buildSocialComparisonSummary } = require('./compare');
 const { formatPremierForPrompt, fetchPremierFeedback } = require('./premier');
-const { cleanAnalysisOutput, FORMAT_RULES } = require('./format');
+const { cleanAnalysisOutput, FORMAT_RULES, RETRO_LEARNING_FORMAT_RULES, SOCIAL_COMPARE_FORMAT_RULES } = require('./format');
 
 function getOpenAiKey() {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -19,7 +19,7 @@ function aiFallbackNote(error) {
   return 'AI returned empty response — structured comparison shown above.';
 }
 
-async function callOpenAI(systemPrompt, userPrompt) {
+async function callOpenAI(systemPrompt, userPrompt, { temperature = 0.3 } = {}) {
   const apiKey = getOpenAiKey();
   if (!apiKey) return null;
 
@@ -35,7 +35,7 @@ async function callOpenAI(systemPrompt, userPrompt) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.3,
+      temperature,
     }),
   });
 
@@ -50,22 +50,36 @@ async function analyzeRetroComparison(comparison) {
   const summary = buildComparisonSummary(comparison);
   if (!comparison.has_pair) return summary;
 
-  const prompt = `Compare two video production retros for the same IP.
+  const prompt = `Compare two video production retros for the same IP. Use ONLY the text below as evidence.
 
 ${summary}
 
-Analyze:
-1. Did the team repeat mistakes from the older retro's action items in the newer retro?
-2. What clearly improved?
-3. What still needs work?
-4. Verdict: Learning: Improving / Stagnating / Regressing
+Evidence rules (critical — do not violate):
+- "Repeated mistake" = an issue in the NEWER retro's Bad (or failed execution implied in Good/Bad) that clearly matches an action item or Bad from the OLDER retro. Same theme, not just a vague similarity.
+- If an issue appears ONLY in the newer retro, it is NOT repeated — put it under improvements needed.
+- Do NOT assume something happened before unless the older retro explicitly mentions it.
+- Preserve the team's meaning. Do not rewrite into generic jargon or change intent (submissions may be informal or Hindi-influenced English).
+- Skip points with no direct evidence. Do not pad.
 
-Use ### headers for each numbered section. ${FORMAT_RULES}`;
+Write exactly 3 sections:
+
+### Any repeated mistakes?
+Issues from the newer retro that clearly recur from the older retro. One line each.
+
+### Any improvements needed?
+Issues to fix from the newer retro (including first-time issues). One line each.
+
+### Overall verdict
+Line 1: Learning: Improving / Stagnating / Regressing
+Line 2–3 max: brief evidence only.
+
+${RETRO_LEARNING_FORMAT_RULES}`;
 
   try {
     const ai = await callOpenAI(
-      'You analyze video production retro learning trends. Output plain text with ### headers only.',
+      'You write sharp, evidence-based IP learning summaries from retro text. Never invent repeated mistakes. Output only the 3 required sections.',
       prompt,
+      { temperature: 0.2 },
     );
     if (ai) {
       logInfo('AI retro comparison generated');
@@ -210,29 +224,43 @@ async function analyzeSocialComparison(comparison) {
     || DEFAULT_SOCIAL_ANALYTICS_WEIGHT;
   const retroWeight = 1 - analyticsWeight;
 
-  const prompt = `Compare ${comparison.items.length} Instagram/social content retros for the same IP.
+  const prompt = `Compare ${comparison.items.length} social content retros for the same IP. Use ONLY the text below as evidence.
 
 ${summary}
 
-Important context:
-- Retros are filled soon after release, so analytics may be early/incomplete — weight retro written insights higher when numbers look immature.
-- Older retros may use a previous metric set; only compare metrics that appear in each piece's data.
-- Scoring blend: approximately ${Math.round(retroWeight * 100)}% retro quality (good/bad/action items + metric insights) and ${Math.round(analyticsWeight * 100)}% analytics performance.
+Context:
+- Retros are filled soon after release — analytics may be early; weight retro written insights when numbers look immature.
+- Pieces may use different metric sets; only compare metrics that appear in 2+ pieces.
+- Scoring blend for Winner: ~${Math.round(retroWeight * 100)}% retro quality, ~${Math.round(analyticsWeight * 100)}% analytics.
 
-Analyze in detail:
-1. Analytics comparison across all pieces (note which metrics lead/lag; flag stale-early data)
-2. Retro written insights — what each piece did well and poorly
-3. Action items quality and learning transfer across pieces
-4. Head-to-head ranking of all pieces with evidence
-5. ### Winner
-   Name the winning piece, confidence (High/Medium/Low), and why — using the weighted blend above
+Evidence rules (critical):
+- Analytics highlights: only call out clear leaders/laggers on shared metrics. Cite the number. Max 5 lines.
+- Repeated mistake = same theme in Bad or action items of 2+ pieces. Do NOT mark first-time issues as repeated.
+- Do NOT infer patterns not stated in the retro text.
+- Preserve the team's meaning — submissions may be informal or Hindi-influenced English.
+- Skip points with no direct evidence.
 
-Use ### headers for each numbered section. ${FORMAT_RULES}`;
+Write exactly 4 sections:
+
+### Analytics highlights
+Shared metrics only. One line per standout with numbers.
+
+### Any repeated mistakes?
+Themes that recur across 2+ pieces. One line each.
+
+### Any improvements needed?
+Fixes from retro text (first-time or recurring). One line each.
+
+### Winner
+Best piece overall using the blend above.
+
+${SOCIAL_COMPARE_FORMAT_RULES}`;
 
   try {
     const ai = await callOpenAI(
-      'You compare social media content retros with analytics and qualitative feedback. Declare one clear winner. Output plain text with ### headers only.',
+      'You write sharp social retro comparisons using metrics and retro text. Never invent repeated mistakes. Output only the 4 required sections.',
       prompt,
+      { temperature: 0.2 },
     );
     if (ai) {
       logInfo('AI social comparison generated');
