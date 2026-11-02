@@ -312,58 +312,73 @@ function buildInsightsThreadMessage({ ipName, videoType, analysis, platform = 'y
   };
 }
 
+function escapeSlackMrkdwn(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function formatPendingRetroEntry({ retro, pendingSlots }) {
   const channelId = retro.channel_id;
   const threadTs = retro.thread_ts;
   const link = slackThreadPermalink(channelId, threadTs);
   const typeLabel = formatRetroTypeLabel(retro);
-  const title = typeLabel ? `${retro.video_name} (${typeLabel})` : retro.video_name;
+  const rawTitle = typeLabel ? `${retro.video_name} (${typeLabel})` : retro.video_name;
+  const title = escapeSlackMrkdwn(rawTitle);
+  const ip = escapeSlackMrkdwn(retro.ip_name);
   const threadLine = link
     ? `<${link}|Open retro thread>`
-    : '_Thread link unavailable — retro may not be opened in Slack yet._';
+    : '_Thread link unavailable (retro not opened in Slack yet)._';
   const pendingMentions = pendingSlots.map((s) => `<@${s.userId}>`).join(' ');
   return [
-    `*${title}* · IP: ${retro.ip_name}`,
+    `*${title}* · IP: ${ip}`,
     threadLine,
     `Pending: ${pendingMentions}`,
   ].join('\n');
 }
 
 function buildPendingRetrosMessage({ youtube = [], social = [] }) {
-  const sections = [];
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '*Pending retros*\n_Open retros with at least one unfilled POD member._',
+      },
+    },
+  ];
 
-  if (youtube.length) {
-    sections.push('*YouTube*');
-    youtube.forEach((entry, i) => {
-      if (i > 0) sections.push('');
-      sections.push(formatPendingRetroEntry(entry));
+  const appendPlatform = (label, entries) => {
+    if (!entries.length) return;
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*${label}*` },
+    });
+    for (const entry of entries) {
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: formatPendingRetroEntry(entry) },
+      });
+    }
+  };
+
+  appendPlatform('YouTube', youtube);
+  appendPlatform('Social', social);
+
+  if (!youtube.length && !social.length) {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: 'No open retros with pending POD submissions. :white_check_mark:',
+      },
     });
   }
-
-  if (social.length) {
-    if (sections.length) sections.push('');
-    sections.push('*Social*');
-    social.forEach((entry, i) => {
-      if (i > 0) sections.push('');
-      sections.push(formatPendingRetroEntry(entry));
-    });
-  }
-
-  const body = sections.length
-    ? sections.join('\n')
-    : 'No open retros with pending POD submissions. :white_check_mark:';
 
   return {
     text: 'Pending retros summary',
-    blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: ['*Pending retros*', '_Open retros with at least one unfilled POD member._', '', body].join('\n'),
-        },
-      },
-    ],
+    blocks,
   };
 }
 
