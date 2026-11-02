@@ -85,6 +85,11 @@ https://example.com
 | Request URL | `https://example.com` (Socket Mode) **or** `https://your-host/slack/events` (HTTP mode) |
 | Short Description | Schedule a video retro |
 
+Add a second slash command:
+
+| Command | `/retro-pending` |
+| Short Description | List open retros with pending POD members (YouTube + Social) |
+
 ### Interactivity
 
 Enable **Interactivity**.

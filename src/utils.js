@@ -416,6 +416,14 @@ function formatThreadTsForSheet(ts) {
   return String(ts);
 }
 
+/** Slack archive link to a channel thread (works when user is in the workspace). */
+function slackThreadPermalink(channelId, threadTs) {
+  const ts = normalizeSlackTs(threadTs);
+  if (!channelId || !ts.includes('.')) return '';
+  const [sec, micro] = ts.split('.');
+  return `https://slack.com/archives/${channelId}/p${sec}${micro}`;
+}
+
 module.exports = {
   MIN_POD_MEMBERS,
   MAX_POD_MEMBERS,
@@ -476,4 +484,5 @@ module.exports = {
   parseActionValue,
   normalizeSlackTs,
   formatThreadTsForSheet,
+  slackThreadPermalink,
 };

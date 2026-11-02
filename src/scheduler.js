@@ -14,12 +14,20 @@ function startScheduler(openRetroFn) {
         const retros = await getRetrosDueForAutoOpen(date);
         logInfo(`Found ${retros.length} retro(s) to auto-open`);
 
+        let opened = 0;
+        let failed = 0;
         for (const retro of retros) {
           try {
             await openRetroFn(retro, 'scheduled');
+            opened += 1;
+            await new Promise((r) => setTimeout(r, 1200));
           } catch (error) {
+            failed += 1;
             logError(`openRetro(${retro.retro_id})`, error);
           }
+        }
+        if (retros.length > 0) {
+          logInfo(`Auto-open finished for ${date}`, { total: retros.length, opened, failed });
         }
       } catch (error) {
         logError('scheduler', error);

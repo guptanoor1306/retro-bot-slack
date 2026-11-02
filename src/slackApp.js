@@ -46,7 +46,9 @@ const {
   buildRetroCompleteMessage,
   buildRetroScheduledConfirmation,
   buildRetroOpenedConfirmation,
+  buildPendingRetrosMessage,
 } = require('./messages');
+const { loadPendingRetrosByPlatform } = require('./pendingRetros');
 
 function createSlackApp() {
   const useSocketMode = process.env.USE_SOCKET_MODE !== 'false';
@@ -178,6 +180,44 @@ function registerHandlers(app) {
       });
     } catch (error) {
       logError('/retro command', error);
+    }
+  });
+
+  app.command('/retro-pending', async ({ ack, body, client }) => {
+    const channelId = body.channel_id;
+    const userId = body.user_id;
+
+    try {
+      await ack({
+        response_type: 'ephemeral',
+        text: 'Loading pending retros…',
+      });
+    } catch (ackError) {
+      logError('/retro-pending ack', ackError);
+      return;
+    }
+
+    logInfo('/retro-pending invoked', { channelId, userId });
+
+    if (!channelId) return;
+
+    try {
+      const grouped = await loadPendingRetrosByPlatform();
+      await client.chat.postMessage({
+        channel: channelId,
+        ...buildPendingRetrosMessage(grouped),
+      });
+    } catch (error) {
+      logError('/retro-pending command', error);
+      try {
+        await client.chat.postEphemeral({
+          channel: channelId,
+          user: userId,
+          text: `Could not load pending retros: ${error.message}`,
+        });
+      } catch (ephemeralError) {
+        logError('/retro-pending ephemeral', ephemeralError);
+      }
     }
   });
 

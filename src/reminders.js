@@ -13,10 +13,14 @@ const { buildFillRetroDmMessage, buildCreatorEscalationMessage } = require('./me
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
-async function getPendingPodSlots(retro) {
-  const responses = await getResponsesForRetro(retro.retro_id);
+function computePendingPodSlots(retro, responses = []) {
   const submitted = new Set(responses.map((r) => r.role));
   return getPodMemberSlots(retro).filter((slot) => !submitted.has(slot.role));
+}
+
+async function getPendingPodSlots(retro) {
+  const responses = await getResponsesForRetro(retro.retro_id);
+  return computePendingPodSlots(retro, responses);
 }
 
 async function sendReminderDms(client, retro, pendingSlots, round) {
@@ -91,4 +95,4 @@ async function processRetroReminders(client) {
   }
 }
 
-module.exports = { processRetroReminders };
+module.exports = { processRetroReminders, getPendingPodSlots, computePendingPodSlots };

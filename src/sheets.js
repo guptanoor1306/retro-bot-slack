@@ -270,9 +270,13 @@ async function getOpenRetros() {
 /** Retros due to auto-open today: release was yesterday, still scheduled. */
 async function getRetrosDueForAutoOpen(date = todayIST()) {
   const rows = await readTab(RETROS_TAB, RETROS_HEADERS);
-  return rows.filter(
-    (r) => r.status === 'scheduled' && retroOpenDate(r.release_date) === date,
-  );
+  return rows
+    .filter((r) => r.status === 'scheduled' && retroOpenDate(r.release_date) === date)
+    .sort((a, b) => {
+      const byRelease = (a.release_date || '').localeCompare(b.release_date || '');
+      if (byRelease) return byRelease;
+      return (a.created_at || '').localeCompare(b.created_at || '');
+    });
 }
 
 async function getCompletedRetrosByIpAndType(ipName, videoType) {
@@ -334,6 +338,10 @@ async function createResponse(response) {
   return response;
 }
 
+async function getAllResponses() {
+  return readTab(RESPONSES_TAB, RESPONSES_HEADERS);
+}
+
 async function getResponsesForRetro(retroId) {
   const rows = await readTab(RESPONSES_TAB, RESPONSES_HEADERS);
   return rows.filter((r) => r.retro_id === retroId);
@@ -381,6 +389,7 @@ module.exports = {
   getCompletedRetrosByIpAndType,
   updateRetro,
   createResponse,
+  getAllResponses,
   getResponsesForRetro,
   getResponseByRole,
   savePremierMapping,
