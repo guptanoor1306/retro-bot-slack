@@ -312,17 +312,6 @@ function buildInsightsThreadMessage({ ipName, videoType, analysis, platform = 'y
   };
 }
 
-function escapeSlackMrkdwn(text) {
-  return String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*/g, '·')
-    .replace(/_/g, ' ')
-    .replace(/\n/g, ' ')
-    .trim();
-}
-
 function formatPendingMentions(pendingSlots) {
   const mentions = pendingSlots
     .map((s) => String(s.userId || '').trim())
@@ -332,21 +321,35 @@ function formatPendingMentions(pendingSlots) {
   return pendingSlots.map((s) => s.label || 'POD member').join(', ');
 }
 
-function formatPendingRetroEntry({ retro, pendingSlots }) {
+function escapeSlackLinkLabel(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\|/g, ' ')
+    .replace(/\n/g, ' ')
+    .trim();
+}
+
+function groupPendingEntriesByIp(entries) {
+  const byIp = new Map();
+  for (const entry of entries) {
+    const ip = entry.retro.ip_name?.trim() || 'Unknown IP';
+    if (!byIp.has(ip)) byIp.set(ip, []);
+    byIp.get(ip).push(entry);
+  }
+  return [...byIp.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+function formatPendingRetroLine(index, { retro, pendingSlots }) {
   const link = slackThreadPermalink(retro.channel_id, retro.thread_ts);
   const typeLabel = formatRetroTypeLabel(retro);
-  const rawTitle = typeLabel ? `${retro.video_name} (${typeLabel})` : retro.video_name;
-  const title = escapeSlackMrkdwn(rawTitle);
-  const ip = escapeSlackMrkdwn(retro.ip_name);
-  const threadLine = link
-    ? `<${link}|Open retro thread>`
-    : 'Thread link unavailable (retro not opened in Slack yet).';
+  const label = escapeSlackLinkLabel(
+    typeLabel ? `${retro.video_name} (${typeLabel})` : retro.video_name,
+  );
   const pendingLine = formatPendingMentions(pendingSlots);
-  return [
-    `*${title}* · IP: ${ip}`,
-    threadLine,
-    `Pending: ${pendingLine}`,
-  ].join('\n');
+  const titlePart = link ? `<${link}|${label}>` : label;
+  return `${index}. ${titlePart} — Pending: ${pendingLine}`;
 }
 
 function buildPendingRetrosMessage({ youtube = [], social = [] }) {
@@ -356,24 +359,33 @@ function buildPendingRetrosMessage({ youtube = [], social = [] }) {
     '',
   ];
 
-  const appendPlatform = (label, entries) => {
+  const appendPlatform = (platformLabel, entries) => {
     if (!entries.length) return;
-    lines.push(`*${label}*`, '');
-    for (const entry of entries) {
-      lines.push(formatPendingRetroEntry(entry));
-      lines.push('');
+    lines.push(`*${platformLabel}*`);
+    for (const [ip, ipEntries] of groupPendingEntriesByIp(entries)) {
+      lines.push(`_${escapeSlackLinkLabel(ip)}_`);
+      ipEntries.forEach((entry, i) => {
+        lines.push(formatPendingRetroLine(i + 1, entry));
+      });
     }
+    lines.push('');
   };
 
-  appendPlatform('YouTube', youtube);
-  appendPlatform('Social', social);
+  appendPlatform(formatPlatformLabel('youtube'), youtube);
+  appendPlatform(formatPlatformLabel('social'), social);
 
   if (!youtube.length && !social.length) {
     lines.push('No open retros with pending POD submissions. :white_check_mark:');
   }
 
+  let text = lines.join('\n').trim();
+  const maxLen = 39000;
+  if (text.length > maxLen) {
+    text = `${text.slice(0, maxLen)}\n\n_(List truncated — too many open retros.)_`;
+  }
+
   return {
-    text: lines.join('\n').trim(),
+    text,
     unfurl_links: false,
     unfurl_media: false,
   };
