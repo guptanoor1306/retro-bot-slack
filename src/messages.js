@@ -316,50 +316,52 @@ function escapeSlackMrkdwn(text) {
   return String(text ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/\*/g, '·')
+    .replace(/_/g, ' ')
+    .replace(/\n/g, ' ')
+    .trim();
+}
+
+function formatPendingMentions(pendingSlots) {
+  const mentions = pendingSlots
+    .map((s) => String(s.userId || '').trim())
+    .filter((id) => /^[UW][A-Z0-9]+$/.test(id))
+    .map((id) => `<@${id}>`);
+  if (mentions.length) return mentions.join(' ');
+  return pendingSlots.map((s) => s.label || 'POD member').join(', ');
 }
 
 function formatPendingRetroEntry({ retro, pendingSlots }) {
-  const channelId = retro.channel_id;
-  const threadTs = retro.thread_ts;
-  const link = slackThreadPermalink(channelId, threadTs);
+  const link = slackThreadPermalink(retro.channel_id, retro.thread_ts);
   const typeLabel = formatRetroTypeLabel(retro);
   const rawTitle = typeLabel ? `${retro.video_name} (${typeLabel})` : retro.video_name;
   const title = escapeSlackMrkdwn(rawTitle);
   const ip = escapeSlackMrkdwn(retro.ip_name);
   const threadLine = link
     ? `<${link}|Open retro thread>`
-    : '_Thread link unavailable (retro not opened in Slack yet)._';
-  const pendingMentions = pendingSlots.map((s) => `<@${s.userId}>`).join(' ');
+    : 'Thread link unavailable (retro not opened in Slack yet).';
+  const pendingLine = formatPendingMentions(pendingSlots);
   return [
     `*${title}* · IP: ${ip}`,
     threadLine,
-    `Pending: ${pendingMentions}`,
+    `Pending: ${pendingLine}`,
   ].join('\n');
 }
 
 function buildPendingRetrosMessage({ youtube = [], social = [] }) {
-  const blocks = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Pending retros*\n_Open retros with at least one unfilled POD member._',
-      },
-    },
+  const lines = [
+    '*Pending retros*',
+    '_Open retros with at least one unfilled POD member._',
+    '',
   ];
 
   const appendPlatform = (label, entries) => {
     if (!entries.length) return;
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*${label}*` },
-    });
+    lines.push(`*${label}*`, '');
     for (const entry of entries) {
-      blocks.push({
-        type: 'section',
-        text: { type: 'mrkdwn', text: formatPendingRetroEntry(entry) },
-      });
+      lines.push(formatPendingRetroEntry(entry));
+      lines.push('');
     }
   };
 
@@ -367,18 +369,13 @@ function buildPendingRetrosMessage({ youtube = [], social = [] }) {
   appendPlatform('Social', social);
 
   if (!youtube.length && !social.length) {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: 'No open retros with pending POD submissions. :white_check_mark:',
-      },
-    });
+    lines.push('No open retros with pending POD submissions. :white_check_mark:');
   }
 
   return {
-    text: 'Pending retros summary',
-    blocks,
+    text: lines.join('\n').trim(),
+    unfurl_links: false,
+    unfurl_media: false,
   };
 }
 

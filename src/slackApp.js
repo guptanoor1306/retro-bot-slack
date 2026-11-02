@@ -190,7 +190,7 @@ function registerHandlers(app) {
     try {
       await ack({
         response_type: 'ephemeral',
-        text: 'Loading pending retros…',
+        text: 'Loading pending retros...',
       });
     } catch (ackError) {
       logError('/retro-pending ack', ackError);

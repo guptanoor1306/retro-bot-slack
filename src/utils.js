@@ -416,12 +416,20 @@ function formatThreadTsForSheet(ts) {
   return String(ts);
 }
 
+function normalizeSlackChannelId(channelId) {
+  let s = String(channelId || '').trim();
+  if (s.startsWith("'")) s = s.slice(1);
+  return s;
+}
+
 /** Slack archive link to a channel thread (works when user is in the workspace). */
 function slackThreadPermalink(channelId, threadTs) {
+  const channel = normalizeSlackChannelId(channelId);
   const ts = normalizeSlackTs(threadTs);
-  if (!channelId || !ts.includes('.')) return '';
+  if (!/^C[A-Z0-9]+$/.test(channel) || !ts.includes('.')) return '';
   const [sec, micro] = ts.split('.');
-  return `https://slack.com/archives/${channelId}/p${sec}${micro}`;
+  if (!/^\d+$/.test(sec) || !/^\d+$/.test(micro)) return '';
+  return `https://slack.com/archives/${channel}/p${sec}${micro}`;
 }
 
 module.exports = {
@@ -485,4 +493,5 @@ module.exports = {
   normalizeSlackTs,
   formatThreadTsForSheet,
   slackThreadPermalink,
+  normalizeSlackChannelId,
 };
