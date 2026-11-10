@@ -9,6 +9,7 @@ const state = {
   freqReport: null,
   selectedAntiId: null,
   freqLoading: false,
+  freqRequestId: 0,
 };
 
 const SOCIAL_TYPE_OPTIONS = {
@@ -179,31 +180,71 @@ function renderTimeline(report) {
   }).join('');
 }
 
-function setFreqLoading(loading) {
+function activeFilterLabel() {
+  const period = $('checklistPeriod')?.selectedOptions?.[0]?.textContent?.trim() || 'Monthly';
+  const platform = $('checklistPlatformScope')?.selectedOptions?.[0]?.textContent?.trim() || 'All';
+  const ipVal = $('checklistIpFilter')?.value || '';
+  const ip = ipVal || 'All IPs';
+  return `${period} · ${platform} · ${ip}`;
+}
+
+function setFreqLoading(loading, { filterChange = false } = {}) {
   state.freqLoading = loading;
+  const label = activeFilterLabel();
   const toolbar = $('checklistToolbar');
   toolbar?.classList.toggle('is-loading', loading);
   toolbar?.querySelectorAll('select').forEach((sel) => {
     sel.disabled = loading;
   });
-  const flow = document.querySelector('.checklist-flow');
+
+  const flow = $('checklistFlow');
   flow?.classList.toggle('is-loading', loading);
+  flow?.classList.toggle('is-stale', loading && Boolean(state.freqReport));
+
+  const banner = $('checklistLoadBanner');
+  const bannerText = $('checklistLoadBannerText');
+  const overlay = $('checklistLoadOverlay');
+  const overlayTitle = $('loadOverlayTitle');
+
   if (loading) {
-    state.selectedAntiId = null;
-    closePatternDrill();
-    if ($('freqMeta')) $('freqMeta').textContent = 'Loading — matching retros to checklist…';
+    if (filterChange) {
+      state.selectedAntiId = null;
+      closePatternDrill();
+    }
+    banner?.removeAttribute('hidden');
+    if (bannerText) {
+      bannerText.textContent = filterChange
+        ? `Filter changed — reloading checklist for ${label}`
+        : `Loading checklist for ${label}`;
+    }
+    if (overlayTitle) {
+      overlayTitle.textContent = filterChange
+        ? 'Applying new filters…'
+        : 'Loading checklist data…';
+    }
+    overlay?.removeAttribute('hidden');
+    if ($('freqMeta')) $('freqMeta').textContent = 'Updating…';
+    ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
+      if ($(id)) $(id).textContent = '…';
+    });
+
     const el = $('checklistFrequency');
-    if (el) {
+    const hasData = el?.querySelector('.pattern-row');
+    if (el && !hasData) {
       el.innerHTML = `
         <div class="loading-panel" role="status" aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
-          <p class="loading-title">Analyzing retros</p>
-          <p class="muted">LLM is mapping Good/Bad/Actions to checklist items. Filters unlock when this finishes.</p>
+          <p class="loading-title">First load</p>
+          <p class="muted">Mapping retros to checklist items for ${escapeHtml(label)}.</p>
         </div>`;
     }
-    if ($('checklistTimeline')) {
+    if ($('checklistTimeline') && !$('checklistTimeline').querySelector('.tl-col')) {
       $('checklistTimeline').innerHTML = '<div class="loading-shimmer" aria-hidden="true"></div>';
     }
+  } else {
+    banner?.setAttribute('hidden', '');
+    overlay?.setAttribute('hidden', '');
+    flow?.classList.remove('is-stale');
   }
 }
 
@@ -357,9 +398,9 @@ function renderChecklistCompareFlags(report) {
     .join('');
 }
 
-async function refreshChecklistFrequency() {
-  if (state.freqLoading) return;
-  setFreqLoading(true);
+async function refreshChecklistFrequency({ filterChange = false } = {}) {
+  const reqId = ++state.freqRequestId;
+  setFreqLoading(true, { filterChange });
   try {
     const period = $('checklistPeriod')?.value || 'month';
     const platform = $('checklistPlatformScope')?.value || '';
@@ -368,10 +409,17 @@ async function refreshChecklistFrequency() {
     if (ip) qs.set('ip', ip);
     const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
     const report = await res.json();
+    if (reqId !== state.freqRequestId) return;
     if (!res.ok) throw new Error(report.error);
     renderChecklistFrequency(report);
+  } catch (e) {
+    if (reqId === state.freqRequestId) {
+      if ($('freqMeta')) $('freqMeta').textContent = e.message;
+      $('checklistLoadBannerText').textContent = `Update failed — ${e.message}`;
+    }
+    throw e;
   } finally {
-    setFreqLoading(false);
+    if (reqId === state.freqRequestId) setFreqLoading(false);
   }
 }
 
@@ -381,7 +429,7 @@ async function loadChecklistPanel() {
     const def = await res.json();
     state.checklist = def;
     renderChecklistDefinition(def);
-    await refreshChecklistFrequency();
+    await refreshChecklistFrequency({ filterChange: false });
   } catch (e) {
     if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
   }
@@ -678,21 +726,13 @@ $('socialPlatformFilter')?.addEventListener('change', () => {
   fillSocialRetroSelects();
 });
 $('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
-$('checklistIpFilter')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
-  if ($('freqMeta')) $('freqMeta').textContent = e.message;
-}));
-$('checklistPeriod')?.addEventListener('change', () => {
-  state.selectedAntiId = null;
-  refreshChecklistFrequency().catch((e) => {
-    if ($('freqMeta')) $('freqMeta').textContent = e.message;
-  });
-});
-$('checklistPlatformScope')?.addEventListener('change', () => {
-  state.selectedAntiId = null;
-  refreshChecklistFrequency().catch((e) => {
-    if ($('freqMeta')) $('freqMeta').textContent = e.message;
-  });
-});
+function onChecklistFilterChange() {
+  refreshChecklistFrequency({ filterChange: true }).catch(() => {});
+}
+
+$('checklistIpFilter')?.addEventListener('change', onChecklistFilterChange);
+$('checklistPeriod')?.addEventListener('change', onChecklistFilterChange);
+$('checklistPlatformScope')?.addEventListener('change', onChecklistFilterChange);
 $('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);

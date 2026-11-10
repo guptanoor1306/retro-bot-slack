@@ -185,6 +185,65 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr;
   gap: 32px;
+  position: relative;
+}
+
+.checklist-flow.is-stale .flow-main,
+.checklist-flow.is-stale .drill {
+  opacity: 0.35;
+  filter: grayscale(0.2);
+  pointer-events: none;
+  user-select: none;
+}
+
+.load-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 24px;
+  padding: 12px 16px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.load-banner .spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+}
+
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.load-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(2px);
+  border-radius: 4px;
+}
+
+.load-overlay-card {
+  text-align: center;
+  padding: 28px 36px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  max-width: 340px;
+}
+
+.load-overlay-card .loading-title {
+  margin: 14px 0 6px;
 }
 
 @media (min-width: 900px) {
