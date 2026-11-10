@@ -208,7 +208,7 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
       state.selectedAntiId = null;
       closePatternDrill();
     }
-    overlay?.removeAttribute('hidden');
+    overlay?.classList.add('is-visible');
     if (overlayMsg) {
       overlayMsg.textContent = state.freqReport
         ? `Updating for ${label} — usually 30–90s with LLM`
@@ -218,8 +218,8 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
       if ($(id)) $(id).textContent = '…';
     });
   } else {
-    overlay?.setAttribute('hidden', '');
-    flow?.classList.remove('is-stale');
+    overlay?.classList.remove('is-visible');
+    flow?.classList.remove('is-stale', 'is-loading');
   }
 }
 
@@ -376,6 +376,8 @@ function renderChecklistCompareFlags(report) {
 async function refreshChecklistFrequency({ filterChange = false } = {}) {
   const reqId = ++state.freqRequestId;
   setFreqLoading(true, { filterChange });
+  const runBtn = $('runChecklistBtn');
+  if (runBtn) runBtn.disabled = true;
   try {
     const period = $('checklistPeriod')?.value || 'month';
     const platform = $('checklistPlatformScope')?.value || '';
@@ -395,8 +397,27 @@ async function refreshChecklistFrequency({ filterChange = false } = {}) {
     }
     throw e;
   } finally {
-    if (reqId === state.freqRequestId) setFreqLoading(false);
+    if (reqId === state.freqRequestId) {
+      setFreqLoading(false);
+      if ($('runChecklistBtn')) $('runChecklistBtn').disabled = false;
+    }
   }
+}
+
+function showChecklistIdleState() {
+  if ($('freqMeta')) {
+    $('freqMeta').textContent = 'Choose filters, then Run analysis (LLM — can take 1–2 minutes).';
+  }
+  const el = $('checklistFrequency');
+  if (el) {
+    el.innerHTML = '<p class="idle-hint muted">No checklist frequency loaded yet.</p>';
+  }
+  if ($('checklistTimeline')) $('checklistTimeline').innerHTML = '';
+  ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
+    if ($(id)) $(id).textContent = '—';
+  });
+  state.freqReport = null;
+  closePatternDrill();
 }
 
 async function loadChecklistPanel() {
@@ -405,7 +426,7 @@ async function loadChecklistPanel() {
     const def = await res.json();
     state.checklist = def;
     renderChecklistDefinition(def);
-    await refreshChecklistFrequency({ filterChange: false });
+    showChecklistIdleState();
   } catch (e) {
     if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
   }
@@ -702,13 +723,18 @@ $('socialPlatformFilter')?.addEventListener('change', () => {
   fillSocialRetroSelects();
 });
 $('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
-function onChecklistFilterChange() {
-  refreshChecklistFrequency({ filterChange: true }).catch(() => {});
+function markChecklistFiltersDirty() {
+  if (state.freqReport && $('freqMeta')) {
+    $('freqMeta').textContent = 'Filters changed — click Run analysis to refresh.';
+  }
 }
 
-$('checklistIpFilter')?.addEventListener('change', onChecklistFilterChange);
-$('checklistPeriod')?.addEventListener('change', onChecklistFilterChange);
-$('checklistPlatformScope')?.addEventListener('change', onChecklistFilterChange);
+$('checklistIpFilter')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistPeriod')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistPlatformScope')?.addEventListener('change', markChecklistFiltersDirty);
+$('runChecklistBtn')?.addEventListener('click', () => {
+  refreshChecklistFrequency({ filterChange: true }).catch(() => {});
+});
 $('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);

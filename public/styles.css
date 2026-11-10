@@ -100,10 +100,21 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 20px 28px;
+  align-items: flex-end;
   margin-bottom: 36px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--line);
   position: relative;
+}
+
+.btn-run-checklist {
+  margin-left: auto;
+  min-height: 42px;
+}
+
+.idle-hint {
+  padding: 24px 0;
+  font-size: 0.95rem;
 }
 
 .checklist-flow.is-loading .pattern-row {
@@ -174,10 +185,15 @@ textarea:focus {
   position: absolute;
   inset: 0;
   z-index: 20;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.88);
+  pointer-events: all;
+}
+
+.load-overlay.is-visible {
+  display: flex;
 }
 
 .load-overlay-inner {
