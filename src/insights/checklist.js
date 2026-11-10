@@ -1,7 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const { getAllRetros, getAllResponses } = require('../sheets');
-const { getRetroPlatform, isSocialRetro, logInfo } = require('../utils');
+const {
+  getRetroPlatform,
+  isSocialRetro,
+  logInfo,
+  formatMemberLabel,
+  slackThreadPermalink,
+} = require('../utils');
 const { classifyRetroAgainstChecklist, checklistMatchMode } = require('./checklistLlm');
 
 const CHECKLIST_PATH = path.join(__dirname, '../../data/shorts-reels-checklist.json');
@@ -31,16 +37,40 @@ function collectResponseText(responses = []) {
     .join('\n');
 }
 
-function responseExcerpts(responses = [], maxLen = 480) {
-  const out = [];
+function responseContributors(responses = []) {
+  return responses
+    .filter((r) => r.submitted_at || r.good || r.bad || r.action_items)
+    .map((r) => ({
+      role: r.role,
+      role_label: formatMemberLabel(r.role),
+      user_slack_id: r.user_slack_id || '',
+      submitted_at: r.submitted_at || '',
+    }));
+}
+
+function attributeEvidence(evidence, responses = []) {
+  const ev = String(evidence || '').trim();
+  if (!ev) return null;
+  const needle = ev.toLowerCase().slice(0, 48);
   for (const r of responses) {
-    if (r.bad?.trim()) out.push({ field: 'Bad', text: r.bad.trim().slice(0, maxLen) });
-    if (r.good?.trim()) out.push({ field: 'Good', text: r.good.trim().slice(0, maxLen) });
-    if (r.action_items?.trim()) {
-      out.push({ field: 'Actions', text: r.action_items.trim().slice(0, maxLen) });
+    for (const field of ['bad', 'good', 'action_items']) {
+      const text = r[field];
+      if (!text?.trim()) continue;
+      if (
+        text.toLowerCase().includes(needle)
+        || (needle.length > 12 && text.toLowerCase().includes(needle.slice(0, 24)))
+      ) {
+        return {
+          role: r.role,
+          role_label: formatMemberLabel(r.role),
+          user_slack_id: r.user_slack_id || '',
+          field,
+          submitted_at: r.submitted_at || '',
+        };
+      }
     }
   }
-  return out;
+  return null;
 }
 
 function matchChecklistItems(text, items = []) {
@@ -162,16 +192,21 @@ async function buildAntiFrequencyReportAsync({
       hit.retro_ids.add(retro.retro_id);
       hit.buckets.set(bucket, (hit.buckets.get(bucket) || 0) + 1);
       const responses = responsesByRetro.get(retro.retro_id) || [];
+      const evidence = anti.evidence || '';
       hit.occurrences.push({
         retro_id: retro.retro_id,
         video_name: retro.video_name,
         ip_name: retro.ip_name,
         platform: getRetroPlatform(retro) || 'youtube',
+        social_platform: retro.social_platform || '',
         date: retroDateKey(retro.completed_at || retro.release_date),
         bucket,
-        evidence: anti.evidence || '',
+        evidence,
         confidence: anti.confidence || '',
-        excerpts: responseExcerpts(responses),
+        post_link: String(retro.link || '').trim(),
+        slack_thread_link: slackThreadPermalink(retro.channel_id, retro.thread_ts),
+        contributors: responseContributors(responses),
+        attributed_to: attributeEvidence(evidence, responses),
       });
     }
   }

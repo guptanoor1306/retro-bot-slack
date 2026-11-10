@@ -8,6 +8,7 @@ const state = {
   checklist: null,
   freqReport: null,
   selectedAntiId: null,
+  freqLoading: false,
 };
 
 const SOCIAL_TYPE_OPTIONS = {
@@ -178,6 +179,40 @@ function renderTimeline(report) {
   }).join('');
 }
 
+function setFreqLoading(loading) {
+  state.freqLoading = loading;
+  const toolbar = $('checklistToolbar');
+  toolbar?.classList.toggle('is-loading', loading);
+  toolbar?.querySelectorAll('select').forEach((sel) => {
+    sel.disabled = loading;
+  });
+  const flow = document.querySelector('.checklist-flow');
+  flow?.classList.toggle('is-loading', loading);
+  if (loading) {
+    state.selectedAntiId = null;
+    closePatternDrill();
+    if ($('freqMeta')) $('freqMeta').textContent = 'Loading — matching retros to checklist…';
+    const el = $('checklistFrequency');
+    if (el) {
+      el.innerHTML = `
+        <div class="loading-panel" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-title">Analyzing retros</p>
+          <p class="muted">LLM is mapping Good/Bad/Actions to checklist items. Filters unlock when this finishes.</p>
+        </div>`;
+    }
+    if ($('checklistTimeline')) {
+      $('checklistTimeline').innerHTML = '<div class="loading-shimmer" aria-hidden="true"></div>';
+    }
+  }
+}
+
+function formatSlackUser(slackId) {
+  const id = String(slackId || '').trim();
+  if (!id) return '';
+  return id.startsWith('U') ? `@${id.slice(0, 3)}…${id.slice(-4)}` : id;
+}
+
 function renderPatternDrill(antiId) {
   const report = state.freqReport;
   const item = report?.anti_items?.find((i) => i.id === antiId);
@@ -193,19 +228,37 @@ function renderPatternDrill(antiId) {
   const occ = item.occurrences || [];
   const occurrencesHtml = occ.length
     ? occ.map((o) => {
-        const ex = (o.excerpts || [])
-          .map((e) => `<dl class="excerpt"><dt>${escapeHtml(e.field)}</dt><dd>${escapeHtml(e.text)}</dd></dl>`)
-          .join('');
-        const ev = o.evidence
+        const links = [];
+        if (o.post_link) {
+          links.push(`<a class="text-link" href="${escapeHtml(o.post_link)}" target="_blank" rel="noopener noreferrer">Live post</a>`);
+        }
+        if (o.slack_thread_link) {
+          links.push(`<a class="text-link" href="${escapeHtml(o.slack_thread_link)}" target="_blank" rel="noopener noreferrer">Retro thread (Slack)</a>`);
+        }
+        const linkRow = links.length ? `<p class="occurrence-links">${links.join(' · ')}</p>` : '';
+
+        const attr = o.attributed_to;
+        const who = attr
+          ? `${escapeHtml(attr.role_label)}${attr.user_slack_id ? ` (${escapeHtml(formatSlackUser(attr.user_slack_id))})` : ''}`
+          : (o.contributors || [])
+              .map((c) => escapeHtml(c.role_label))
+              .filter(Boolean)
+              .join(', ') || 'Team retro';
+
+        const line = o.evidence
           ? `<blockquote class="evidence">“${escapeHtml(o.evidence)}”</blockquote>`
-          : '';
-        const conf = o.confidence ? ` · match: ${escapeHtml(o.confidence)}` : '';
+          : '<p class="muted">No matched line extracted — re-run after deploy or check retro text.</p>';
+
+        const conf = o.confidence ? ` · ${escapeHtml(o.confidence)} confidence` : '';
+        const social = o.social_platform ? ` · ${escapeHtml(o.social_platform)}` : '';
+
         return `
           <article class="occurrence">
             <h4>${escapeHtml(o.video_name || 'Untitled')}</h4>
-            <p class="occurrence-meta">${escapeHtml(o.ip_name || '')} · ${escapeHtml(o.platform)} · ${escapeHtml(o.date || '')}${conf}</p>
-            ${ev}
-            ${ex || '<p class="muted">No retro text in sheet for this piece.</p>'}
+            <p class="occurrence-meta">${escapeHtml(o.ip_name || '')} · ${escapeHtml(o.platform)}${social} · ${escapeHtml(o.date || '')}${conf}</p>
+            <p class="occurrence-who"><strong>Wrote / matched:</strong> ${who}</p>
+            ${line}
+            ${linkRow}
           </article>`;
       }).join('')
     : '<p class="muted">No occurrences stored.</p>';
@@ -305,15 +358,21 @@ function renderChecklistCompareFlags(report) {
 }
 
 async function refreshChecklistFrequency() {
-  const period = $('checklistPeriod')?.value || 'month';
-  const platform = $('checklistPlatformScope')?.value || '';
-  const ip = checklistIpForScope();
-  const qs = new URLSearchParams({ period, platform });
-  if (ip) qs.set('ip', ip);
-  const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
-  const report = await res.json();
-  if (!res.ok) throw new Error(report.error);
-  renderChecklistFrequency(report);
+  if (state.freqLoading) return;
+  setFreqLoading(true);
+  try {
+    const period = $('checklistPeriod')?.value || 'month';
+    const platform = $('checklistPlatformScope')?.value || '';
+    const ip = checklistIpForScope();
+    const qs = new URLSearchParams({ period, platform });
+    if (ip) qs.set('ip', ip);
+    const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
+    const report = await res.json();
+    if (!res.ok) throw new Error(report.error);
+    renderChecklistFrequency(report);
+  } finally {
+    setFreqLoading(false);
+  }
 }
 
 async function loadChecklistPanel() {

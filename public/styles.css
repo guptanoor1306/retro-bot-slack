@@ -5,7 +5,8 @@
   --line: #e0e0e0;
   --soft: #f7f7f7;
   --accent: #000000;
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
 * { box-sizing: border-box; }
@@ -102,6 +103,54 @@ body {
   margin-bottom: 36px;
   padding-bottom: 24px;
   border-bottom: 1px solid var(--line);
+  position: relative;
+}
+
+.toolbar.is-loading select {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.checklist-flow.is-loading .pattern-row {
+  pointer-events: none;
+}
+
+.loading-panel {
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.loading-title {
+  margin: 16px 0 8px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  border: 2px solid var(--line);
+  border-top-color: var(--fg);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-shimmer {
+  height: 88px;
+  background: linear-gradient(90deg, var(--soft) 25%, #eee 50%, var(--soft) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
 .toolbar-field {
@@ -386,6 +435,32 @@ textarea:focus {
   margin: 0 0 10px;
   white-space: pre-wrap;
   line-height: 1.5;
+}
+
+.occurrence-who {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.occurrence-who strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.occurrence-links {
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+}
+
+.text-link {
+  color: var(--fg);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.text-link:hover {
+  text-decoration: underline;
 }
 
 .ref-fold {
