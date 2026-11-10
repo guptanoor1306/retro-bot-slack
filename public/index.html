@@ -155,6 +155,42 @@
 
     <div id="actionError" class="error"></div>
 
+    <div class="card checklist-card" id="checklistCard">
+      <h2>Reels &amp; Shorts checklist</h2>
+      <p class="desc">LLM maps retro text to checklist items (fallback: keywords). Edit <code>data/shorts-reels-checklist.json</code> from your PDF.</p>
+      <div class="grid-2 checklist-controls">
+        <div class="field">
+          <label for="checklistPeriod">Anti-pattern frequency</label>
+          <select id="checklistPeriod">
+            <option value="month">Monthly</option>
+            <option value="week">Weekly</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="checklistPlatformScope">Scope</label>
+          <select id="checklistPlatformScope">
+            <option value="">All platforms</option>
+            <option value="youtube">YouTube Shorts/Reels</option>
+            <option value="social">Social Reels</option>
+          </select>
+        </div>
+      </div>
+      <div class="checklist-columns">
+        <div>
+          <h3>Do</h3>
+          <ul id="checklistDo" class="checklist-list"></ul>
+        </div>
+        <div>
+          <h3>Anti (watch list)</h3>
+          <ul id="checklistAnti" class="checklist-list anti"></ul>
+        </div>
+      </div>
+      <h3>Anti-pattern repeats</h3>
+      <div id="checklistFrequency" class="checklist-frequency">Loading…</div>
+      <h3>Comparison flags</h3>
+      <div id="checklistCompareFlags" class="checklist-flags muted">Run a compare to flag repeated anti-patterns.</div>
+    </div>
+
     <div class="card result-card">
       <h2>Insights</h2>
       <p class="desc">Pointed AI summary in 3 sections: repeated mistakes, improvements needed, overall verdict. Needs <code>OPENAI_API_KEY</code>.</p>

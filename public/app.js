@@ -6,6 +6,7 @@ const state = {
   publishRetroId: null,
   mode: 'retros',
   platform: 'youtube',
+  checklist: null,
 };
 
 const SOCIAL_TYPE_OPTIONS = {
@@ -96,8 +97,97 @@ async function loadData() {
     fillRetroSelects();
     fillSocialRetroSelects();
     fillPremierSelects();
+    await loadChecklistPanel();
   } catch (e) {
     $('actionError').textContent = e.message;
+  }
+}
+
+function renderChecklistDefinition(def) {
+  const doEl = $('checklistDo');
+  const antiEl = $('checklistAnti');
+  if (!doEl || !antiEl) return;
+  doEl.innerHTML = (def.checks || [])
+    .map((c) => `<li>${c.label}</li>`)
+    .join('') || '<li class="muted">None configured</li>';
+  antiEl.innerHTML = (def.antiChecks || [])
+    .map((c) => `<li>${c.label}</li>`)
+    .join('') || '<li class="muted">None configured</li>';
+}
+
+function renderChecklistFrequency(report) {
+  const el = $('checklistFrequency');
+  if (!el) return;
+  if (!report?.anti_items?.length) {
+    el.innerHTML = `<p class="muted">No anti-pattern hits in ${report?.retro_count || 0} completed Shorts/Reel retros.</p>`;
+    return;
+  }
+
+  const periods = report.periods || [];
+  const head = ['Anti-pattern', 'Total retros', ...periods];
+  const rows = report.anti_items
+    .filter((item) => item.total_retros > 0)
+    .map((item) => {
+      const cells = [
+        item.label,
+        String(item.total_retros),
+        ...periods.map((p) => String(item.by_period?.[p] || 0)),
+      ];
+      return `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+    })
+    .join('');
+
+  el.innerHTML = `
+    <p class="muted">${report.retro_count} completed retros in scope · ${report.period === 'week' ? 'Week' : 'Month'} buckets (IST dates)</p>
+    <table>
+      <thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows || '<tr><td colspan="99">No matches</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderChecklistCompareFlags(report) {
+  const el = $('checklistCompareFlags');
+  if (!el) return;
+  if (!report) {
+    el.innerHTML = '<span class="muted">Run a compare to flag repeated anti-patterns.</span>';
+    return;
+  }
+  const repeated = report.repeated_anti || [];
+  if (!repeated.length) {
+    el.innerHTML = '<span class="muted">No repeated anti-checklist items matched in this comparison.</span>';
+    return;
+  }
+  el.innerHTML = repeated
+    .map((r) => {
+      const ev = r.evidence ? ` — "${r.evidence}"` : '';
+      return `<div class="flag">⚠ ${r.label}${r.count ? ` — ${r.count} pieces` : ''}${r.note ? ` (${r.note})` : ''}${ev}</div>`;
+    })
+    .join('');
+}
+
+async function refreshChecklistFrequency() {
+  const period = $('checklistPeriod')?.value || 'month';
+  const platform = $('checklistPlatformScope')?.value || '';
+  const ip = state.platform === 'social'
+    ? ($('socialIpFilter')?.value || '')
+    : ($('ipFilter')?.value || '');
+  const qs = new URLSearchParams({ period, platform });
+  if (ip) qs.set('ip', ip);
+  const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
+  const report = await res.json();
+  if (!res.ok) throw new Error(report.error);
+  renderChecklistFrequency(report);
+}
+
+async function loadChecklistPanel() {
+  try {
+    const res = await fetch('/api/checklist/shorts-reels');
+    const def = await res.json();
+    state.checklist = def;
+    renderChecklistDefinition(def);
+    await refreshChecklistFrequency();
+  } catch (e) {
+    if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
   }
 }
 
@@ -263,6 +353,7 @@ async function runRetroCompare() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     $('analysis').value = data.analysis;
+    renderChecklistCompareFlags(data.checklist_report);
     state.publishRetroId = data.publish_retro_id;
     $('publishBtn').disabled = !data.can_publish;
   } catch (e) {
@@ -298,6 +389,7 @@ async function runSocialCompare() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     $('analysis').value = data.analysis;
+    renderChecklistCompareFlags(data.checklist_report);
     state.publishRetroId = data.publish_retro_id;
     $('publishBtn').disabled = !data.can_publish;
   } catch (e) {
@@ -391,13 +483,29 @@ document.querySelectorAll('#youtubeInsights .tab').forEach((tab) => {
   tab.addEventListener('click', () => setMode(tab.dataset.mode));
 });
 
-$('ipFilter')?.addEventListener('change', () => fillRetroSelects());
+$('ipFilter')?.addEventListener('change', () => {
+  fillRetroSelects();
+  refreshChecklistFrequency().catch((e) => {
+    if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
+  });
+});
 $('typeFilter')?.addEventListener('change', () => fillCompareRetroSelects());
 $('socialPlatformFilter')?.addEventListener('change', () => {
   updateSocialTypeFilter();
   fillSocialRetroSelects();
 });
-$('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
+$('socialIpFilter')?.addEventListener('change', () => {
+  fillSocialRetroSelects();
+  refreshChecklistFrequency().catch((e) => {
+    if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
+  });
+});
+$('checklistPeriod')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
+  if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
+}));
+$('checklistPlatformScope')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
+  if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
+}));
 $('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);

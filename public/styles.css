@@ -68,6 +68,48 @@ header p {
 .platform-panel { display: none; }
 .platform-panel.active { display: block; }
 
+.checklist-card h3 {
+  margin: 16px 0 8px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.checklist-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.checklist-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.checklist-list.anti { color: #fca5a5; }
+
+.checklist-frequency table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.checklist-frequency th,
+.checklist-frequency td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.checklist-frequency th { background: var(--surface2); }
+
+.checklist-flags .flag {
+  color: var(--warn);
+  margin: 4px 0;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

@@ -2,6 +2,7 @@ const { logError, logInfo, DEFAULT_SOCIAL_ANALYTICS_WEIGHT } = require('../utils
 const { buildComparisonSummary, buildSocialComparisonSummary } = require('./compare');
 const { formatPremierForPrompt, fetchPremierFeedback } = require('./premier');
 const { cleanAnalysisOutput, FORMAT_RULES, RETRO_LEARNING_FORMAT_RULES, SOCIAL_COMPARE_FORMAT_RULES } = require('./format');
+const { formatChecklistReportForPrompt } = require('./checklist');
 
 function getOpenAiKey() {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -46,13 +47,20 @@ async function callOpenAI(systemPrompt, userPrompt, { temperature = 0.3 } = {}) 
 }
 
 /** Mode 1: Compare two retros by IP */
-async function analyzeRetroComparison(comparison) {
+async function analyzeRetroComparison(comparison, { checklist_report: checklistReport } = {}) {
   const summary = buildComparisonSummary(comparison);
   if (!comparison.has_pair) return summary;
+
+  const checklistBlock = checklistReport?.repeated_anti?.length
+    ? `${formatChecklistReportForPrompt(checklistReport)}\n`
+    : '';
 
   const prompt = `Compare two video production retros for the same IP. Use ONLY the text below as evidence.
 
 ${summary}
+
+${checklistBlock}Checklist hints are keyword matches on retro text — use only when they clearly align with retro wording. Do not treat checklist alone as proof of repetition.
+
 
 Evidence rules (critical — do not violate):
 - "Repeated mistake" = an issue in the NEWER retro's Bad (or failed execution implied in Good/Bad) that clearly matches an action item or Bad from the OLDER retro. Same theme, not just a vague similarity.
@@ -216,7 +224,7 @@ Use ### headers for each numbered section. ${FORMAT_RULES}`;
 }
 
 /** Social: compare 2–4 retros with weighted analytics + retro blend */
-async function analyzeSocialComparison(comparison) {
+async function analyzeSocialComparison(comparison, { checklist_report: checklistReport } = {}) {
   const summary = buildSocialComparisonSummary(comparison);
   if (!comparison.has_comparison) return summary;
 
@@ -224,9 +232,16 @@ async function analyzeSocialComparison(comparison) {
     || DEFAULT_SOCIAL_ANALYTICS_WEIGHT;
   const retroWeight = 1 - analyticsWeight;
 
+  const checklistBlock = checklistReport?.repeated_anti?.length
+    ? `${formatChecklistReportForPrompt(checklistReport)}\n`
+    : '';
+
   const prompt = `Compare ${comparison.items.length} social content retros for the same IP. Use ONLY the text below as evidence.
 
 ${summary}
+
+${checklistBlock}Checklist hints are keyword matches — confirm with retro text before calling something repeated.
+
 
 Context:
 - Retros are filled soon after release — analytics may be early; weight retro written insights when numbers look immature.

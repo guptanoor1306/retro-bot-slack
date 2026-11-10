@@ -12,6 +12,11 @@ const {
 const { compareRetrosByIp, compareTwoRetros, compareSocialRetros, buildComparisonSummary } = require('./src/insights/compare');
 const { listAllEndedPremiers } = require('./src/insights/premier');
 const { analyzeRetroComparison, analyzeCombined, analyzePremierComparison, analyzeSocialComparison } = require('./src/insights/analyze');
+const {
+  loadChecklistDefinition,
+  buildAntiFrequencyReportAsync,
+  buildComparisonChecklistReport,
+} = require('./src/insights/checklist');
 const { publishInsightsToThread } = require('./src/insights/slack');
 const { logError, logInfo, formatVideoType, formatRetroTypeLabel, getRetroPlatform } = require('./src/utils');
 
@@ -71,6 +76,19 @@ app.get('/api/retros', asyncHandler(async (req, res) => {
   res.json(retros.map(mapRetro));
 }));
 
+app.get('/api/checklist/shorts-reels', asyncHandler(async (_req, res) => {
+  res.json(loadChecklistDefinition());
+}));
+
+app.get('/api/checklist/anti-frequency', asyncHandler(async (req, res) => {
+  const report = await buildAntiFrequencyReportAsync({
+    period: req.query.period === 'week' ? 'week' : 'month',
+    ip: req.query.ip || '',
+    platform: req.query.platform || '',
+  });
+  res.json(report);
+}));
+
 app.get('/api/premier/sessions', asyncHandler(async (req, res) => {
   const items = await listAllEndedPremiers({ search: req.query.search || '' });
   res.json({ items });
@@ -88,11 +106,13 @@ app.post('/api/analyze/retros', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'ip_name or retro_ids required' });
   }
 
-  const analysis = await analyzeRetroComparison(comparison);
+  const checklist_report = await buildComparisonChecklistReport(comparison);
+  const analysis = await analyzeRetroComparison(comparison, { checklist_report });
 
   res.json({
     comparison,
     analysis,
+    checklist_report,
     publish_retro_id: comparison.publish_retro_id || null,
     can_publish: Boolean(comparison.has_pair && comparison.newer?.thread_ts),
   });
@@ -101,12 +121,14 @@ app.post('/api/analyze/retros', asyncHandler(async (req, res) => {
 app.post('/api/analyze/social', asyncHandler(async (req, res) => {
   const { retro_ids: retroIds = [] } = req.body;
   const comparison = await compareSocialRetros(retroIds);
-  const analysis = await analyzeSocialComparison(comparison);
+  const checklist_report = await buildComparisonChecklistReport(comparison);
+  const analysis = await analyzeSocialComparison(comparison, { checklist_report });
   const publishTarget = comparison.items?.[comparison.items.length - 1];
 
   res.json({
     comparison,
     analysis,
+    checklist_report,
     publish_retro_id: comparison.publish_retro_id || null,
     can_publish: Boolean(publishTarget?.thread_ts),
   });

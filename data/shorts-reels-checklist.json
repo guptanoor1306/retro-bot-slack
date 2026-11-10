@@ -1,0 +1,349 @@
+{
+  "title": "Reels & Shorts Checklist",
+  "appliesTo": { "youtubeVideoTypes": ["shorts_reels"], "socialTypes": ["reel"] },
+  "checks": [
+    {
+      "id": "payoff_first_3s",
+      "label": "C1: Payoff in header, content starts by second 3",
+      "description": "State the payoff in the header and get into the actual content by second 3. Skip any context setting.",
+      "signals": [
+        "payoff upfront",
+        "got to the point fast",
+        "content started by 3 sec",
+        "no setup",
+        "setup was under 3 seconds",
+        "seedha content pe aa gaye",
+        "hook mein hi payoff",
+        "no context setting",
+        "straight into it",
+        "point jaldi aaya"
+      ]
+    },
+    {
+      "id": "numbers_in_first_slate",
+      "label": "C2: Show a number or column in the first slate (Excel/calculator reels)",
+      "description": "For Excel and calculator reels, show at least one column of numbers in the first slate, under a 'How much X do you need for Y' header. A curiosity header with no numbers performs worse.",
+      "signals": [
+        "numbers in first frame",
+        "showed the column upfront",
+        "how much X do you need header",
+        "number dikhaya shuru mein",
+        "excel visible from start",
+        "calculator on screen early",
+        "numbers came too late",
+        "curiosity header without number",
+        "numbers started at 8 sec",
+        "first slate had data"
+      ]
+    },
+    {
+      "id": "static_header_4s",
+      "label": "C3: Static, readable header on screen from 0:00 for 4+ sec",
+      "description": "Keep the header on screen from 0:00 for at least 4 seconds, at the top of the frame, in static, readable type. Headers that flash by or are animated raise skip.",
+      "signals": [
+        "header was too quick",
+        "header gayab ho gaya",
+        "header only 2 sec",
+        "animated header",
+        "couldn't read the header",
+        "header top of frame",
+        "header stayed on screen",
+        "fixed header",
+        "header readable nahi tha",
+        "static text header"
+      ]
+    },
+    {
+      "id": "raw_look",
+      "label": "C4: Make it look raw",
+      "description": "Shoot handheld on the phone back camera, show the real screen and keep the edit light, especially for topicals. Raw-looking reels beat flashy feed versions on skip, shares and follows.",
+      "signals": [
+        "raw feel",
+        "handheld shot",
+        "back cam",
+        "phone pe shoot kiya",
+        "real screen recording",
+        "light edit",
+        "felt authentic",
+        "not overproduced",
+        "lo-fi worked",
+        "jugaad style shoot",
+        "stable frame re-hook"
+      ]
+    },
+    {
+      "id": "topical_in_news_cycle",
+      "label": "C5: Post topicals inside the news cycle",
+      "description": "Post topical reels while the news is still live. If it's late, drop it rather than posting.",
+      "signals": [
+        "posted late",
+        "news cycle miss ho gaya",
+        "a week late",
+        "topical was stale",
+        "posted fast",
+        "same day post",
+        "trend khatam ho chuka tha",
+        "too late for the news",
+        "timely post",
+        "should have dropped it"
+      ]
+    },
+    {
+      "id": "firm_statement_hook",
+      "label": "C6: Open with a firm statement or fact",
+      "description": "Open with an affirmative statement or fact. Avoid 'might', 'maybe' or question hooks.",
+      "signals": [
+        "affirmative statement",
+        "hook was a fact",
+        "used 'might have'",
+        "maybe wala hook",
+        "question hook",
+        "hook was weak/unsure",
+        "confident opening",
+        "firm statement",
+        "hook mein doubt tha",
+        "hedged hook"
+      ]
+    },
+    {
+      "id": "recognisable_logos_first_frame",
+      "label": "C7: Recognisable logos or products in the first frame",
+      "description": "Show logos or products people already recognise in the first frame. This cut skip by 6 to 8 points; unfamiliar or missing logos did worse.",
+      "signals": [
+        "logos in first frame",
+        "familiar brands",
+        "real logos",
+        "unfamiliar logos",
+        "no logos",
+        "log pehchaante hain brand",
+        "brand recall",
+        "recognisable products",
+        "logo se attention mila",
+        "logos missing in opening"
+      ]
+    },
+    {
+      "id": "presenter_on_screen_early",
+      "label": "C8: PS on screen in the first 3 sec and for most of the reel",
+      "description": "Get PS on screen within the first 3 seconds and keep them there for most of the reel. Reels where PS was off screen for 20+ seconds lost retention.",
+      "signals": [
+        "PS did not appear",
+        "PS came too late",
+        "PS off screen for 20 sec",
+        "face nahi dikha",
+        "PS on screen early",
+        "presenter missing",
+        "PS ka face shuru mein",
+        "no face in opening",
+        "PS appeared after 20 seconds",
+        "creator presence"
+      ]
+    },
+    {
+      "id": "checklist_personal_consequence",
+      "label": "C9: Checklists name a personal consequence; lead with the least-known point",
+      "description": "For checklist reels, the header should name a personal consequence (e.g. 'to not get rejected'). Lead with the least-known point and keep point 1 under 12 seconds.",
+      "signals": [
+        "personal stake in header",
+        "consequence framing",
+        "to not get rejected",
+        "least-known point first",
+        "contrarian first point",
+        "point 1 too long",
+        "point 1 under 12 sec",
+        "kya nuksaan hoga batao",
+        "generic checklist framing",
+        "obvious point first"
+      ]
+    },
+    {
+      "id": "ranking_format_tiers",
+      "label": "C10: Rankings use S/A/B tiers, 5+ items, short reasons, one tier open",
+      "description": "Use standard S/A/B tiers with 5 or more items and one-line reasons of 10 seconds max each. Leave one tier empty until the end so viewers stay for the last reveal.",
+      "signals": [
+        "tier list",
+        "S/A/B tiers",
+        "only 4 items",
+        "reasons too long",
+        "23 sec on point 1",
+        "kept a tier empty",
+        "dropped after 5th reveal",
+        "no tier left open",
+        "one-line reasons",
+        "ranking bahut lamba ho gaya"
+      ]
+    },
+    {
+      "id": "ab_test_hooks_trial_reels",
+      "label": "C11: Test 2 hook versions on trial reels, 2+ hrs apart, one change only",
+      "description": "Test hooks with two versions on trial reels at the same time, posted at least 2 hours apart, changing only one thing. Trials posted back to back tanked.",
+      "signals": [
+        "trial reel",
+        "A/B test",
+        "two hook versions",
+        "changed only the hook",
+        "posted back to back",
+        "2 hrs gap",
+        "trial tanked",
+        "one variable change",
+        "hook test kiya",
+        "test version beat feed"
+      ]
+    },
+    {
+      "id": "short_cta_at_end",
+      "label": "C12: CTA at the end, kept short",
+      "description": "Put the CTA at the end and keep it short. Mid-reel CTAs caused immediate retention drops.",
+      "signals": [
+        "CTA mid-reel",
+        "drop at CTA",
+        "CTA too early",
+        "CTA bahut lamba",
+        "CTA before PS's POV",
+        "short CTA",
+        "CTA at the end",
+        "retention fell at CTA",
+        "follow ask too early",
+        "CTA ne log bhaga diye"
+      ]
+    }
+  ],
+  "antiChecks": [
+    {
+      "id": "long_context_setting",
+      "label": "A1: Spending the opening on context, or VO reading the header",
+      "description": "Don't spend the opening setting context or have the VO read out the header. These reels lost most viewers within seconds.",
+      "signals": [
+        "context setting was too long",
+        "repeating what the header says",
+        "VO reads the header",
+        "6 sec of setup",
+        "intro bahut lamba",
+        "87% gone by sec 11",
+        "slow start",
+        "too much build-up",
+        "header ko hi repeat kiya",
+        "point pe aane mein time laga"
+      ]
+    },
+    {
+      "id": "header_vo_mismatch",
+      "label": "A2: Header and VO promise different payoffs",
+      "description": "Don't let the header and the VO promise different things. Keep one payoff and phrase it two ways.",
+      "signals": [
+        "header and VO don't match",
+        "two different payoffs",
+        "mixed promise",
+        "confusing hook",
+        "is it X or Y",
+        "header kuch aur, VO kuch aur",
+        "unclear what the reel is about",
+        "mismatch in hook",
+        "one payoff only",
+        "promise alag alag"
+      ]
+    },
+    {
+      "id": "flashy_edit_first_3s",
+      "label": "A3: Fast zooms, flashy edits or moving subtitles in the first 3 sec",
+      "description": "Avoid fast zooms, flashy Shorts-style edits, quick B-roll cuts or moving subtitles in the first 3 seconds. The same reel re-hooked on a stable frame did far better.",
+      "signals": [
+        "too many things in first 3 seconds",
+        "fast zooms",
+        "flashy edit",
+        "quick B-roll cuts",
+        "moving subtitles",
+        "shorts-style edit",
+        "bahut kuch ho raha tha",
+        "retention fell sec 1 to 2",
+        "jarring opening",
+        "stable frame would be better"
+      ]
+    },
+    {
+      "id": "cluttered_zero_slate",
+      "label": "A4: Cluttered zero slate (4+ elements)",
+      "description": "Don't open on a zero slate with 4 or more elements. Car calculators were the one exception, so test before applying this to calculators.",
+      "signals": [
+        "super overwhelming",
+        "cluttered first frame",
+        "too many elements",
+        "frame mein bahut kuch",
+        "busy opening slate",
+        "PS, article, header all in one",
+        "visual clutter",
+        "zero slate too crowded",
+        "kya dekhein samajh nahi aaya",
+        "clean first frame needed"
+      ]
+    },
+    {
+      "id": "polished_promotional_look",
+      "label": "A5: Polished, stylised or promotional look",
+      "description": "Don't make it look polished, stylised or promotional, such as stylised header fonts, character-style edits or ad-like logo setups. These read as ads and raised skip.",
+      "signals": [
+        "too polished",
+        "looks like a paid ad",
+        "came across as promotional",
+        "stylised font",
+        "ad jaisa lag raha tha",
+        "too technical",
+        "over-designed",
+        "character-style edit",
+        "branded feel",
+        "sponsored vibe"
+      ]
+    },
+    {
+      "id": "negative_or_unfamiliar_ranking",
+      "label": "A6: Negative/flipped rankings or ranking unfamiliar things",
+      "description": "Don't use negative or flipped rankings (F to A), and don't rank things people don't already know.",
+      "signals": [
+        "negative ranking",
+        "inverted ranking",
+        "F to A",
+        "force fit format",
+        "topic and format feel like a force fit",
+        "log ko pata hi nahi kya rank ho raha",
+        "unfamiliar items ranked",
+        "ranking didn't land",
+        "retention kept falling",
+        "low shares on ranking"
+      ]
+    },
+    {
+      "id": "exact_reupload",
+      "label": "A7: Exact re-upload",
+      "description": "Don't post an exact re-upload. Change the footage and the first 3 seconds, not just the hook; hook-only changes still got reach capped.",
+      "signals": [
+        "exact reupload",
+        "reach capped",
+        "same video dobara",
+        "only changed the hook",
+        "reach killed",
+        "re-upload underperformed",
+        "repost didn't work",
+        "change footage and first 3 sec",
+        "PS to Zero1 audience switch",
+        "duplicate content"
+      ]
+    },
+    {
+      "id": "generic_n_checks_hook",
+      "label": "A8: '3 checks' / '3 ways' opening without a personal stake",
+      "description": "Don't open with '3 checks' or '3 ways' unless it carries a personal stake for the viewer. Generic list hooks had some of the worst skip rates.",
+      "signals": [
+        "3 checks hook",
+        "3 ways hook",
+        "generic list opening",
+        "no personal stake",
+        "listicle hook",
+        "boring checklist framing",
+        "why should I care",
+        "mujhe isse kya",
+        "low retention at 3 sec",
+        "number-list hook flopped"
+      ]
+    }
+  ]
+}
