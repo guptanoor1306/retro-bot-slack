@@ -214,9 +214,9 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
         ? `Updating for ${label} — usually 30–90s with LLM`
         : `Loading checklist for ${label} — usually 30–90s with LLM`;
     }
-    ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
-      if ($(id)) $(id).textContent = '…';
-    });
+  ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
+    if ($(id)) $(id).textContent = '…';
+  }); /* loading placeholder */
   } else {
     overlay?.classList.remove('is-visible');
     flow?.classList.remove('is-stale', 'is-loading');
@@ -414,7 +414,7 @@ function showChecklistIdleState() {
   }
   if ($('checklistTimeline')) $('checklistTimeline').innerHTML = '';
   ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
-    if ($(id)) $(id).textContent = '—';
+    if ($(id)) $(id).textContent = '0';
   });
   state.freqReport = null;
   closePatternDrill();

@@ -1,0 +1,11 @@
+{
+  "scanned": "2026-11-10",
+  "findings": {
+    "framework": "Express static insights-server, vanilla HTML/JS",
+    "fonts": "Instrument Sans (replaced by Hallmark Coral: General Sans + Geist Mono)",
+    "palette": "custom CSS vars in public/styles.css",
+    "product": "Retro Insights checklist + compare retros, data from Google Sheets + OpenAI"
+  },
+  "preserve": ["all element ids", "app.js API wiring", "on-demand checklist LLM", "two-tab checklist vs compare"],
+  "introduce": "Hallmark Coral tokens, app screen density, hallmark base floor"
+}

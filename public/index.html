@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Checklist anti-patterns and retro compare for Shorts and Reels production." />
   <title>Retro Insights</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -20,19 +20,17 @@
     </header>
 
     <section id="viewChecklist" class="view view-active" data-view="checklist">
-      <p class="lede">Anti-patterns from completed Shorts &amp; Reels retros. Click a row to read what teams wrote and what to fix.</p>
+      <p class="lead">Shorts and reels retros mapped to the checklist. Set filters, run analysis, then open a row for the matched line.</p>
 
-      <div class="inline-stats">
-        <span><strong id="kpiScoped">—</strong> in scope</span>
-        <span class="dot">·</span>
-        <span><strong id="kpiAnalyzed">—</strong> analyzed</span>
-        <span class="dot">·</span>
-        <span><strong id="kpiWithAnti">—</strong> with anti hits</span>
-      </div>
+      <dl class="stat-row">
+        <div class="stat-cell"><dt>In scope</dt><dd class="num" id="kpiScoped">0</dd></div>
+        <div class="stat-cell"><dt>Analyzed</dt><dd class="num" id="kpiAnalyzed">0</dd></div>
+        <div class="stat-cell"><dt>With anti hits</dt><dd class="num" id="kpiWithAnti">0</dd></div>
+      </dl>
 
       <div class="toolbar" id="checklistToolbar">
         <label class="toolbar-field">
-          <span>Frequency</span>
+          <span>Frequency view</span>
           <select id="checklistPeriod">
             <option value="month" selected>Monthly</option>
             <option value="week">Weekly</option>
@@ -64,7 +62,7 @@
           </div>
         </div>
         <div class="flow-main">
-          <h2 class="flow-title">Anti-pattern frequency</h2>
+          <h2 class="flow-title">Anti-pattern ledger</h2>
           <p class="flow-hint" id="freqMeta"></p>
           <div id="checklistFrequency" class="pattern-list"></div>
 
@@ -94,7 +92,7 @@
     </section>
 
     <section id="viewCompare" class="view" data-view="compare" hidden>
-      <p class="lede">Pick completed retros, run AI compare, publish learnings to Slack.</p>
+      <p class="lead">Choose two retros, run compare, publish the summary to the Slack thread.</p>
 
       <nav class="platform-tabs">
         <button type="button" class="platform-tab active" data-platform="youtube">YouTube</button>
