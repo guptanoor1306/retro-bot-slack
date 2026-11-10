@@ -8,10 +8,69 @@
 </head>
 <body>
   <div class="layout">
-    <header>
+    <header class="page-header">
       <h1>Retro Insights</h1>
-      <p>Compare YouTube or Social retros — publish winners and learnings to Slack threads.</p>
+      <p>Shorts &amp; Reels checklist trends, then compare completed retros and publish to Slack.</p>
     </header>
+
+    <div class="card checklist-card hero-card" id="checklistCard">
+      <div class="checklist-head">
+        <div>
+          <h2>Reels &amp; Shorts checklist</h2>
+          <p class="desc">LLM maps retro Good/Bad/Actions to Do &amp; Anti items. Frequency uses completed YouTube Shorts/Reels and Social Reels only.</p>
+        </div>
+        <div class="checklist-kpis" id="checklistKpis">
+          <div class="kpi"><span class="kpi-val" id="kpiScoped">—</span><span class="kpi-label">In scope</span></div>
+          <div class="kpi"><span class="kpi-val" id="kpiAnalyzed">—</span><span class="kpi-label">Analyzed</span></div>
+          <div class="kpi"><span class="kpi-val" id="kpiWithAnti">—</span><span class="kpi-label">With anti hits</span></div>
+        </div>
+      </div>
+
+      <div class="grid-2 checklist-controls">
+        <div class="field">
+          <label for="checklistPeriod">Frequency view</label>
+          <select id="checklistPeriod">
+            <option value="month" selected>Monthly</option>
+            <option value="week">Weekly</option>
+            <option value="year">Annual</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="checklistPlatformScope">Scope</label>
+          <select id="checklistPlatformScope">
+            <option value="">All platforms</option>
+            <option value="youtube">YouTube Shorts/Reels</option>
+            <option value="social">Social Reels</option>
+          </select>
+        </div>
+      </div>
+
+      <section class="freq-section">
+        <h3>Anti-pattern frequency</h3>
+        <div id="checklistFrequency" class="checklist-frequency">
+          <p class="muted">Loading…</p>
+        </div>
+      </section>
+
+      <details class="checklist-ref">
+        <summary>Reference checklist (Do &amp; Anti)</summary>
+        <div class="checklist-columns">
+          <div>
+            <h4>Do</h4>
+            <ul id="checklistDo" class="checklist-list"></ul>
+          </div>
+          <div>
+            <h4>Anti (watch list)</h4>
+            <ul id="checklistAnti" class="checklist-list anti"></ul>
+          </div>
+        </div>
+      </details>
+
+      <section class="flags-section">
+        <h3>Comparison flags</h3>
+        <div id="checklistCompareFlags" class="checklist-flags muted">Run a compare below to flag repeated anti-patterns.</div>
+      </section>
+    </div>
 
     <nav class="platform-tabs">
       <button class="platform-tab active" data-platform="youtube">YouTube</button>
@@ -19,12 +78,6 @@
     </nav>
 
     <div id="youtubeInsights" class="platform-panel active">
-      <nav class="tabs">
-        <button class="tab active" data-mode="retros">① Compare Retros</button>
-        <button class="tab" data-mode="combined">② Retro + Premier</button>
-        <button class="tab" data-mode="premiers">③ Compare Premier</button>
-      </nav>
-
       <section class="panel active" data-mode="retros">
         <div class="card">
           <h2>Compare Retros</h2>
@@ -58,51 +111,29 @@
         </div>
       </section>
 
-      <section class="panel" data-mode="combined">
+      <!-- Premier workflows hidden from UI -->
+      <nav class="tabs premier-only" hidden aria-hidden="true">
+        <button class="tab" data-mode="combined">② Retro + Premier</button>
+        <button class="tab" data-mode="premiers">③ Compare Premier</button>
+      </nav>
+      <section class="panel premier-only" data-mode="combined" hidden>
         <div class="card">
           <h2>Retro + Premier Combined</h2>
-          <p class="desc">Select 2 retros (older → newer) and 2 Premier sessions to check if learnings were implemented.</p>
           <div class="grid-2">
-            <div class="field">
-              <label for="combinedRetroA">Retro A (older)</label>
-              <select id="combinedRetroA"></select>
-            </div>
-            <div class="field">
-              <label for="combinedRetroB">Retro B (newer)</label>
-              <select id="combinedRetroB"></select>
-            </div>
-            <div class="field">
-              <label for="combinedPremierA">Premier A (older)</label>
-              <select id="combinedPremierA"></select>
-            </div>
-            <div class="field">
-              <label for="combinedPremierB">Premier B (newer)</label>
-              <select id="combinedPremierB"></select>
-            </div>
+            <select id="combinedRetroA"></select>
+            <select id="combinedRetroB"></select>
+            <select id="combinedPremierA"></select>
+            <select id="combinedPremierB"></select>
           </div>
-          <div class="actions">
-            <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
-          </div>
+          <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
         </div>
       </section>
-
-      <section class="panel" data-mode="premiers">
+      <section class="panel premier-only" data-mode="premiers" hidden>
         <div class="card">
           <h2>Compare Premier Feedback</h2>
-          <p class="desc">Compare reviewer feedback across two Premier sessions — copy results (no Slack publish).</p>
-          <div class="grid-2">
-            <div class="field">
-              <label for="premierA">Premier session A</label>
-              <select id="premierA"></select>
-            </div>
-            <div class="field">
-              <label for="premierB">Premier session B</label>
-              <select id="premierB"></select>
-            </div>
-          </div>
-          <div class="actions">
-            <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
-          </div>
+          <select id="premierA"></select>
+          <select id="premierB"></select>
+          <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
         </div>
       </section>
     </div>
@@ -110,7 +141,7 @@
     <div id="socialInsights" class="platform-panel">
       <div class="card">
         <h2>Compare Social Retros</h2>
-        <p class="desc">Pick an IP and <strong>2–4 completed</strong> social pieces. AI picks a winner with pointed analytics + retro insights (60% retro / 40% analytics blend).</p>
+        <p class="desc">Pick an IP and <strong>2–4 completed</strong> social pieces. AI blends retro insights with analytics.</p>
         <div class="grid-2">
           <div class="field">
             <label for="socialPlatformFilter">Platform</label>
@@ -155,49 +186,12 @@
 
     <div id="actionError" class="error"></div>
 
-    <div class="card checklist-card" id="checklistCard">
-      <h2>Reels &amp; Shorts checklist</h2>
-      <p class="desc">LLM maps retro text to checklist items (fallback: keywords). Edit <code>data/shorts-reels-checklist.json</code> from your PDF.</p>
-      <div class="grid-2 checklist-controls">
-        <div class="field">
-          <label for="checklistPeriod">Anti-pattern frequency</label>
-          <select id="checklistPeriod">
-            <option value="month">Monthly</option>
-            <option value="week">Weekly</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="checklistPlatformScope">Scope</label>
-          <select id="checklistPlatformScope">
-            <option value="">All platforms</option>
-            <option value="youtube">YouTube Shorts/Reels</option>
-            <option value="social">Social Reels</option>
-          </select>
-        </div>
-      </div>
-      <div class="checklist-columns">
-        <div>
-          <h3>Do</h3>
-          <ul id="checklistDo" class="checklist-list"></ul>
-        </div>
-        <div>
-          <h3>Anti (watch list)</h3>
-          <ul id="checklistAnti" class="checklist-list anti"></ul>
-        </div>
-      </div>
-      <h3>Anti-pattern repeats</h3>
-      <div id="checklistFrequency" class="checklist-frequency">Loading…</div>
-      <h3>Comparison flags</h3>
-      <div id="checklistCompareFlags" class="checklist-flags muted">Run a compare to flag repeated anti-patterns.</div>
-    </div>
-
     <div class="card result-card">
       <h2>Insights</h2>
-      <p class="desc">Pointed AI summary in 3 sections: repeated mistakes, improvements needed, overall verdict. Needs <code>OPENAI_API_KEY</code>.</p>
+      <p class="desc">Pointed AI summary: repeated mistakes, improvements needed, overall verdict.</p>
       <textarea id="analysis" placeholder="Run an analysis to see insights here…"></textarea>
       <div class="actions">
         <button id="publishBtn" class="btn btn-success" disabled>Publish to Slack thread</button>
-        <button id="copyBtn" class="btn btn-secondary" style="display:none">Copy insights</button>
       </div>
     </div>
   </div>

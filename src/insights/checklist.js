@@ -62,14 +62,24 @@ async function analyzeRetroChecklistAsync({ retro, responses, text: presetText }
   };
 }
 
-function periodBucket(isoDate, period) {
+function retroDateKey(isoDate) {
   if (!isoDate) return '';
-  const d = isoDate.slice(0, 10);
+  return String(isoDate).trim().slice(0, 10);
+}
+
+/** Bucket keys for charts (week = Monday start, IST calendar date from sheet). */
+function periodBucket(isoDate, period) {
+  const d = retroDateKey(isoDate);
+  if (!d) return '';
+  if (period === 'year') return d.slice(0, 4);
   if (period === 'week') {
-    const dt = new Date(`${d}T12:00:00Z`);
-    const day = dt.getUTCDay() || 7;
-    dt.setUTCDate(dt.getUTCDate() - day + 1);
-    return dt.toISOString().slice(0, 10);
+    const dt = new Date(`${d}T12:00:00+05:30`);
+    const day = dt.getDay() || 7;
+    dt.setDate(dt.getDate() - day + 1);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayNum}`;
   }
   return d.slice(0, 7);
 }
@@ -98,13 +108,18 @@ async function buildAntiFrequencyReportAsync({
   const retroHits = new Map();
   const bucketRetroIds = new Map();
 
-  const maxLlm = parseInt(process.env.CHECKLIST_LLM_MAX_RETROS || '25', 10) || 25;
-  if (checklistMatchMode() === 'llm') {
+  const scopedTotal = scoped.length;
+  const freqMax = parseInt(process.env.CHECKLIST_FREQ_MAX_RETROS || '0', 10);
+  if (checklistMatchMode() === 'llm' && freqMax > 0 && scoped.length > freqMax) {
     scoped = scoped
       .sort((a, b) => (b.completed_at || b.release_date || '').localeCompare(a.completed_at || a.release_date || ''))
-      .slice(0, maxLlm);
-    logInfo('Checklist frequency LLM scope', { retros: scoped.length, maxLlm });
+      .slice(0, freqMax);
+    logInfo('Checklist frequency LLM scope (capped)', { analyzed: scoped.length, scopedTotal, freqMax });
+  } else if (checklistMatchMode() === 'llm') {
+    logInfo('Checklist frequency LLM scope (all)', { analyzed: scoped.length });
   }
+
+  const retrosWithAnti = new Set();
 
   for (const retro of scoped) {
     const bucket = periodBucket(retro.completed_at || retro.release_date, period);
@@ -115,6 +130,7 @@ async function buildAntiFrequencyReportAsync({
     });
     if (!analysis.applies || !analysis.antiChecks.length) continue;
 
+    retrosWithAnti.add(retro.retro_id);
     if (!bucketRetroIds.has(bucket)) bucketRetroIds.set(bucket, new Set());
     bucketRetroIds.get(bucket).add(retro.retro_id);
 
@@ -148,10 +164,19 @@ async function buildAntiFrequencyReportAsync({
 
   const periods = [...new Set([...counts.keys()].map((k) => k.split('::')[0]))].sort();
 
+  const periodTotals = {};
+  for (const p of periods) {
+    periodTotals[p] = bucketRetroIds.get(p)?.size || 0;
+  }
+
   return {
     period,
     title: def.title,
-    retro_count: scoped.length,
+    scoped_count: scopedTotal,
+    analyzed_count: scoped.length,
+    retros_with_anti: retrosWithAnti.size,
+    retro_count: scopedTotal,
+    period_totals: periodTotals,
     periods,
     anti_items: antiItems,
     checks: def.checks,

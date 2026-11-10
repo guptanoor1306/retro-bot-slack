@@ -82,7 +82,7 @@ app.get('/api/checklist/shorts-reels', asyncHandler(async (_req, res) => {
 
 app.get('/api/checklist/anti-frequency', asyncHandler(async (req, res) => {
   const report = await buildAntiFrequencyReportAsync({
-    period: req.query.period === 'week' ? 'week' : 'month',
+    period: ['week', 'year'].includes(req.query.period) ? req.query.period : 'month',
     ip: req.query.ip || '',
     platform: req.query.platform || '',
   });

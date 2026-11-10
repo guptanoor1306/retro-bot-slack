@@ -45,22 +45,8 @@ function setPlatform(platform) {
   });
   $('youtubeInsights').classList.toggle('active', platform === 'youtube');
   $('socialInsights').classList.toggle('active', platform === 'social');
-  $('publishBtn').style.display = '';
-  $('copyBtn').style.display = platform === 'youtube' && state.mode === 'premiers' ? '' : 'none';
   $('actionError').textContent = '';
-}
-
-function setMode(mode) {
-  state.mode = mode;
-  document.querySelectorAll('#youtubeInsights .tab').forEach((t) => {
-    t.classList.toggle('active', t.dataset.mode === mode);
-  });
-  document.querySelectorAll('#youtubeInsights .panel').forEach((p) => {
-    p.classList.toggle('active', p.dataset.mode === mode);
-  });
-  $('publishBtn').style.display = state.platform === 'social' ? '' : (mode === 'premiers' ? 'none' : '');
-  $('copyBtn').style.display = mode === 'premiers' ? '' : 'none';
-  $('actionError').textContent = '';
+  refreshChecklistFrequency().catch(() => {});
 }
 
 function retrosForPlatform(platform) {
@@ -69,21 +55,18 @@ function retrosForPlatform(platform) {
 
 async function loadData() {
   try {
-    const [youtubeIpsRes, socialIpsRes, retroRes, premierRes] = await Promise.all([
+    const [youtubeIpsRes, socialIpsRes, retroRes] = await Promise.all([
       fetch('/api/ips?platform=youtube'),
       fetch('/api/ips?platform=social'),
       fetch('/api/retros'),
-      fetch('/api/premier/sessions'),
     ]);
     const youtubeIpsData = await youtubeIpsRes.json();
     const socialIpsData = await socialIpsRes.json();
     const retroData = await retroRes.json();
-    const premierData = await premierRes.json();
 
     state.youtubeIps = youtubeIpsData.ips || [];
     state.socialIps = socialIpsData.ips || [];
     state.retros = retroData;
-    state.premiers = premierData.items || [];
 
     $('ipFilter').innerHTML = state.youtubeIps.length
       ? state.youtubeIps.map((ip) => `<option value="${ip}">${ip}</option>`).join('')
@@ -96,7 +79,6 @@ async function loadData() {
     updateSocialTypeFilter();
     fillRetroSelects();
     fillSocialRetroSelects();
-    fillPremierSelects();
     await loadChecklistPanel();
   } catch (e) {
     $('actionError').textContent = e.message;
@@ -115,34 +97,115 @@ function renderChecklistDefinition(def) {
     .join('') || '<li class="muted">None configured</li>';
 }
 
+function periodLabel(periodKey, granularity) {
+  if (granularity === 'year') return periodKey;
+  if (granularity === 'month' && /^\d{4}-\d{2}$/.test(periodKey)) {
+    const [y, m] = periodKey.split('-');
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${names[parseInt(m, 10) - 1]} ${y}`;
+  }
+  if (granularity === 'week') return `Wk ${periodKey}`;
+  return periodKey;
+}
+
+function checklistIpForScope() {
+  const platformScope = $('checklistPlatformScope')?.value || '';
+  if (platformScope === 'social') return $('socialIpFilter')?.value || '';
+  if (platformScope === 'youtube') return $('ipFilter')?.value || '';
+  return '';
+}
+
+function renderChecklistKpis(report) {
+  const scoped = report.scoped_count ?? report.retro_count ?? 0;
+  const analyzed = report.analyzed_count ?? scoped;
+  const withAnti = report.retros_with_anti ?? 0;
+  if ($('kpiScoped')) $('kpiScoped').textContent = String(scoped);
+  if ($('kpiAnalyzed')) {
+    $('kpiAnalyzed').textContent = analyzed < scoped ? `${analyzed}*` : String(analyzed);
+    $('kpiAnalyzed').title = analyzed < scoped ? `Capped analysis; set CHECKLIST_FREQ_MAX_RETROS=0 for all` : '';
+  }
+  if ($('kpiWithAnti')) $('kpiWithAnti').textContent = String(withAnti);
+}
+
 function renderChecklistFrequency(report) {
   const el = $('checklistFrequency');
   if (!el) return;
-  if (!report?.anti_items?.length) {
-    el.innerHTML = `<p class="muted">No anti-pattern hits in ${report?.retro_count || 0} completed Shorts/Reel retros.</p>`;
+  renderChecklistKpis(report || {});
+
+  const granularity = report?.period || 'month';
+  const periodName = { week: 'Weekly', month: 'Monthly', year: 'Annual' }[granularity] || 'Monthly';
+  const scoped = report?.scoped_count ?? report?.retro_count ?? 0;
+  const analyzed = report?.analyzed_count ?? scoped;
+  const hits = (report?.anti_items || []).filter((item) => item.total_retros > 0);
+
+  if (!hits.length) {
+    el.innerHTML = `
+      <p class="freq-meta">${periodName} view · ${analyzed} analyzed of ${scoped} completed Shorts/Reel retros · matcher: ${report?.matcher || 'n/a'}</p>
+      <p class="muted">No anti-pattern hits in this scope yet.</p>`;
     return;
   }
 
-  const periods = report.periods || [];
-  const head = ['Anti-pattern', 'Total retros', ...periods];
-  const rows = report.anti_items
-    .filter((item) => item.total_retros > 0)
+  const maxPieces = Math.max(...hits.map((h) => h.total_retros), 1);
+  const topBars = hits
+    .slice(0, 8)
     .map((item) => {
-      const cells = [
-        item.label,
-        String(item.total_retros),
-        ...periods.map((p) => String(item.by_period?.[p] || 0)),
-      ];
-      return `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+      const pct = Math.round((item.total_retros / maxPieces) * 100);
+      const shortLabel = item.label.replace(/^[AC]\d+:\s*/, '');
+      return `
+        <div class="bar-row">
+          <div class="bar-label" title="${item.label}">${shortLabel}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div class="bar-val">${item.total_retros}</div>
+        </div>`;
     })
     .join('');
 
+  const periods = report.periods || [];
+  const timeline = periods.map((p) => {
+    const totalInPeriod = report.period_totals?.[p]
+      ?? hits.reduce((sum, item) => sum + (item.by_period?.[p] || 0), 0);
+    const maxT = Math.max(...periods.map((pk) => report.period_totals?.[pk] || 0), 1);
+    const h = Math.max(8, Math.round((totalInPeriod / maxT) * 72));
+    return `
+      <div class="timeline-col" title="${periodLabel(p, granularity)}: ${totalInPeriod} piece(s) with anti hits">
+        <div class="timeline-bar" style="height:${h}px"></div>
+        <div class="timeline-lbl">${periodLabel(p, granularity)}</div>
+        <div class="timeline-num">${totalInPeriod}</div>
+      </div>`;
+  }).join('');
+
+  const tableRows = hits.map((item) => {
+    const cells = [
+      item.label,
+      String(item.total_retros),
+      ...periods.map((p) => String(item.by_period?.[p] || 0)),
+    ];
+    return `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+  }).join('');
+
   el.innerHTML = `
-    <p class="muted">${report.retro_count} completed retros in scope · ${report.period === 'week' ? 'Week' : 'Month'} buckets (IST dates)</p>
-    <table>
-      <thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
-      <tbody>${rows || '<tr><td colspan="99">No matches</td></tr>'}</tbody>
-    </table>`;
+    <p class="freq-meta">${periodName} buckets (IST) · ${analyzed} analyzed of ${scoped} in scope · ${report.retros_with_anti || 0} with anti hits</p>
+    <div class="chart-grid">
+      <div class="chart-panel">
+        <h4>Top anti-patterns <span class="muted">(pieces affected)</span></h4>
+        <div class="bar-chart">${topBars}</div>
+      </div>
+      <div class="chart-panel">
+        <h4>Pieces with anti hits over time</h4>
+        <div class="timeline-chart">${timeline || '<p class="muted">No periods yet</p>'}</div>
+      </div>
+    </div>
+    <details class="freq-table-wrap">
+      <summary>Table view</summary>
+      <table class="freq-table">
+        <thead><tr>
+          <th>Anti-pattern</th>
+          <th>Pieces</th>
+          ${periods.map((p) => `<th>${periodLabel(p, granularity)}</th>`).join('')}
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </details>`;
 }
 
 function renderChecklistCompareFlags(report) {
@@ -168,9 +231,7 @@ function renderChecklistCompareFlags(report) {
 async function refreshChecklistFrequency() {
   const period = $('checklistPeriod')?.value || 'month';
   const platform = $('checklistPlatformScope')?.value || '';
-  const ip = state.platform === 'social'
-    ? ($('socialIpFilter')?.value || '')
-    : ($('ipFilter')?.value || '');
+  const ip = checklistIpForScope();
   const qs = new URLSearchParams({ period, platform });
   if (ip) qs.set('ip', ip);
   const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
@@ -314,16 +375,6 @@ function fillSocialRetroSelects() {
 
 function fillRetroSelects() {
   fillCompareRetroSelects();
-  const all = retroOptions({ platform: 'youtube' });
-  if ($('combinedRetroA')) $('combinedRetroA').innerHTML = all || '<option value="">No retros</option>';
-  if ($('combinedRetroB')) $('combinedRetroB').innerHTML = all || '<option value="">No retros</option>';
-}
-
-function fillPremierSelects() {
-  const opts = premierOptions();
-  ['combinedPremierA', 'combinedPremierB', 'premierA', 'premierB'].forEach((id) => {
-    if ($(id)) $(id).innerHTML = opts;
-  });
 }
 
 async function runRetroCompare() {
@@ -479,10 +530,6 @@ document.querySelectorAll('.platform-tab').forEach((tab) => {
   tab.addEventListener('click', () => setPlatform(tab.dataset.platform));
 });
 
-document.querySelectorAll('#youtubeInsights .tab').forEach((tab) => {
-  tab.addEventListener('click', () => setMode(tab.dataset.mode));
-});
-
 $('ipFilter')?.addEventListener('change', () => {
   fillRetroSelects();
   refreshChecklistFrequency().catch((e) => {
@@ -513,8 +560,6 @@ $('analyzeSocialBtn')?.addEventListener('click', runSocialCompare);
 $('analyzeCombinedBtn')?.addEventListener('click', runCombinedCompare);
 $('analyzePremierBtn')?.addEventListener('click', runPremierCompare);
 $('publishBtn')?.addEventListener('click', publishToSlack);
-$('copyBtn')?.addEventListener('click', copyInsights);
 
 setPlatform('youtube');
-setMode('retros');
 loadData();
