@@ -31,6 +31,18 @@ function collectResponseText(responses = []) {
     .join('\n');
 }
 
+function responseExcerpts(responses = [], maxLen = 480) {
+  const out = [];
+  for (const r of responses) {
+    if (r.bad?.trim()) out.push({ field: 'Bad', text: r.bad.trim().slice(0, maxLen) });
+    if (r.good?.trim()) out.push({ field: 'Good', text: r.good.trim().slice(0, maxLen) });
+    if (r.action_items?.trim()) {
+      out.push({ field: 'Actions', text: r.action_items.trim().slice(0, maxLen) });
+    }
+  }
+  return out;
+}
+
 function matchChecklistItems(text, items = []) {
   if (!text?.trim()) return [];
   const haystack = text.toLowerCase();
@@ -138,13 +150,33 @@ async function buildAntiFrequencyReportAsync({
       const key = `${bucket}::${anti.id}`;
       counts.set(key, (counts.get(key) || 0) + 1);
       if (!retroHits.has(anti.id)) {
-        retroHits.set(anti.id, { id: anti.id, label: anti.label, retro_ids: new Set(), buckets: new Map() });
+        retroHits.set(anti.id, {
+          id: anti.id,
+          label: anti.label,
+          retro_ids: new Set(),
+          buckets: new Map(),
+          occurrences: [],
+        });
       }
       const hit = retroHits.get(anti.id);
       hit.retro_ids.add(retro.retro_id);
       hit.buckets.set(bucket, (hit.buckets.get(bucket) || 0) + 1);
+      const responses = responsesByRetro.get(retro.retro_id) || [];
+      hit.occurrences.push({
+        retro_id: retro.retro_id,
+        video_name: retro.video_name,
+        ip_name: retro.ip_name,
+        platform: getRetroPlatform(retro) || 'youtube',
+        date: retroDateKey(retro.completed_at || retro.release_date),
+        bucket,
+        evidence: anti.evidence || '',
+        confidence: anti.confidence || '',
+        excerpts: responseExcerpts(responses),
+      });
     }
   }
+
+  const antiById = new Map((def.antiChecks || []).map((i) => [i.id, i]));
 
   const antiItems = (def.antiChecks || []).map((item) => {
     const hit = retroHits.get(item.id);
@@ -154,11 +186,14 @@ async function buildAntiFrequencyReportAsync({
         byPeriod[bucket] = count;
       }
     }
+    const meta = antiById.get(item.id) || item;
     return {
       id: item.id,
       label: item.label,
+      description: meta.description || '',
       total_retros: hit ? hit.retro_ids.size : 0,
       by_period: byPeriod,
+      occurrences: hit?.occurrences || [],
     };
   }).sort((a, b) => b.total_retros - a.total_retros);
 

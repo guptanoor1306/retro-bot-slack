@@ -7,193 +7,175 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="layout">
-    <header class="page-header">
+  <div class="shell">
+    <header class="top">
       <h1>Retro Insights</h1>
-      <p>Shorts &amp; Reels checklist trends, then compare completed retros and publish to Slack.</p>
+      <nav class="view-tabs" aria-label="Main">
+        <button type="button" class="view-tab active" data-view="checklist">Checklist</button>
+        <button type="button" class="view-tab" data-view="compare">Compare retro</button>
+      </nav>
     </header>
 
-    <div class="card checklist-card hero-card" id="checklistCard">
-      <div class="checklist-head">
-        <div>
-          <h2>Reels &amp; Shorts checklist</h2>
-          <p class="desc">LLM maps retro Good/Bad/Actions to Do &amp; Anti items. Frequency uses completed YouTube Shorts/Reels and Social Reels only.</p>
-        </div>
-        <div class="checklist-kpis" id="checklistKpis">
-          <div class="kpi"><span class="kpi-val" id="kpiScoped">—</span><span class="kpi-label">In scope</span></div>
-          <div class="kpi"><span class="kpi-val" id="kpiAnalyzed">—</span><span class="kpi-label">Analyzed</span></div>
-          <div class="kpi"><span class="kpi-val" id="kpiWithAnti">—</span><span class="kpi-label">With anti hits</span></div>
-        </div>
+    <section id="viewChecklist" class="view view-active" data-view="checklist">
+      <p class="lede">Anti-patterns from completed Shorts &amp; Reels retros. Click a row to read what teams wrote and what to fix.</p>
+
+      <div class="inline-stats">
+        <span><strong id="kpiScoped">—</strong> in scope</span>
+        <span class="dot">·</span>
+        <span><strong id="kpiAnalyzed">—</strong> analyzed</span>
+        <span class="dot">·</span>
+        <span><strong id="kpiWithAnti">—</strong> with anti hits</span>
       </div>
 
-      <div class="grid-2 checklist-controls">
-        <div class="field">
-          <label for="checklistPeriod">Frequency view</label>
+      <div class="toolbar">
+        <label class="toolbar-field">
+          <span>Frequency</span>
           <select id="checklistPeriod">
             <option value="month" selected>Monthly</option>
             <option value="week">Weekly</option>
             <option value="year">Annual</option>
           </select>
-        </div>
-        <div class="field">
-          <label for="checklistPlatformScope">Scope</label>
+        </label>
+        <label class="toolbar-field">
+          <span>Platform</span>
           <select id="checklistPlatformScope">
-            <option value="">All platforms</option>
+            <option value="">All</option>
             <option value="youtube">YouTube Shorts/Reels</option>
             <option value="social">Social Reels</option>
           </select>
-        </div>
+        </label>
+        <label class="toolbar-field">
+          <span>IP</span>
+          <select id="checklistIpFilter">
+            <option value="">All IPs</option>
+          </select>
+        </label>
       </div>
 
-      <section class="freq-section">
-        <h3>Anti-pattern frequency</h3>
-        <div id="checklistFrequency" class="checklist-frequency">
-          <p class="muted">Loading…</p>
-        </div>
-      </section>
+      <div class="checklist-flow">
+        <div class="flow-main">
+          <h2 class="flow-title">Anti-pattern frequency</h2>
+          <p class="flow-hint" id="freqMeta">Loading…</p>
+          <div id="checklistFrequency" class="pattern-list"></div>
 
-      <details class="checklist-ref">
-        <summary>Reference checklist (Do &amp; Anti)</summary>
-        <div class="checklist-columns">
+          <h2 class="flow-title spaced">Over time</h2>
+          <div id="checklistTimeline" class="timeline-flow"></div>
+        </div>
+
+        <aside id="patternDrill" class="drill" hidden>
+          <button type="button" class="drill-close" id="drillClose" aria-label="Close detail">×</button>
+          <div id="patternDrillBody"></div>
+        </aside>
+      </div>
+
+      <details class="ref-fold">
+        <summary>Do &amp; Anti reference</summary>
+        <div class="ref-cols">
           <div>
-            <h4>Do</h4>
-            <ul id="checklistDo" class="checklist-list"></ul>
+            <h3>Do</h3>
+            <ul id="checklistDo" class="ref-list"></ul>
           </div>
           <div>
-            <h4>Anti (watch list)</h4>
-            <ul id="checklistAnti" class="checklist-list anti"></ul>
+            <h3>Anti</h3>
+            <ul id="checklistAnti" class="ref-list"></ul>
           </div>
         </div>
       </details>
+    </section>
 
-      <section class="flags-section">
-        <h3>Comparison flags</h3>
-        <div id="checklistCompareFlags" class="checklist-flags muted">Run a compare below to flag repeated anti-patterns.</div>
-      </section>
-    </div>
+    <section id="viewCompare" class="view" data-view="compare" hidden>
+      <p class="lede">Pick completed retros, run AI compare, publish learnings to Slack.</p>
 
-    <nav class="platform-tabs">
-      <button class="platform-tab active" data-platform="youtube">YouTube</button>
-      <button class="platform-tab" data-platform="social">Social</button>
-    </nav>
+      <nav class="platform-tabs">
+        <button type="button" class="platform-tab active" data-platform="youtube">YouTube</button>
+        <button type="button" class="platform-tab" data-platform="social">Social</button>
+      </nav>
 
-    <div id="youtubeInsights" class="platform-panel active">
-      <section class="panel active" data-mode="retros">
-        <div class="card">
-          <h2>Compare Retros</h2>
-          <p class="desc">Pick an IP, then choose two <strong>completed</strong> YouTube retros (optionally filter by type).</p>
+      <div id="youtubeInsights" class="platform-panel platform-active">
+        <div class="compare-block">
+          <h2>YouTube</h2>
           <div class="grid-2">
-            <div class="field">
-              <label for="ipFilter">IP</label>
+            <label class="field">
+              <span>IP</span>
               <select id="ipFilter"><option value="">Loading…</option></select>
-            </div>
-            <div class="field">
-              <label for="typeFilter">Type (optional)</label>
+            </label>
+            <label class="field">
+              <span>Type</span>
               <select id="typeFilter">
                 <option value="">All types</option>
                 <option value="long_form">Long-form</option>
                 <option value="shorts_reels">Shorts/Reels</option>
                 <option value="podcast">Podcast</option>
               </select>
-            </div>
-            <div class="field">
-              <label for="retroOlder">Retro A (older)</label>
+            </label>
+            <label class="field">
+              <span>Older retro</span>
               <select id="retroOlder"><option value="">Select IP first</option></select>
-            </div>
-            <div class="field">
-              <label for="retroNewer">Retro B (newer)</label>
+            </label>
+            <label class="field">
+              <span>Newer retro</span>
               <select id="retroNewer"><option value="">Select IP first</option></select>
-            </div>
+            </label>
           </div>
-          <div class="actions">
-            <button id="analyzeBtn" class="btn btn-primary">Run analysis</button>
-          </div>
+          <button type="button" id="analyzeBtn" class="btn">Run analysis</button>
         </div>
-      </section>
+      </div>
 
-      <!-- Premier workflows hidden from UI -->
-      <nav class="tabs premier-only" hidden aria-hidden="true">
-        <button class="tab" data-mode="combined">② Retro + Premier</button>
-        <button class="tab" data-mode="premiers">③ Compare Premier</button>
-      </nav>
-      <section class="panel premier-only" data-mode="combined" hidden>
-        <div class="card">
-          <h2>Retro + Premier Combined</h2>
+      <div id="socialInsights" class="platform-panel">
+        <div class="compare-block">
+          <h2>Social</h2>
           <div class="grid-2">
-            <select id="combinedRetroA"></select>
-            <select id="combinedRetroB"></select>
-            <select id="combinedPremierA"></select>
-            <select id="combinedPremierB"></select>
+            <label class="field">
+              <span>Platform</span>
+              <select id="socialPlatformFilter">
+                <option value="">All</option>
+                <option value="instagram">Instagram</option>
+                <option value="linkedin">LinkedIn</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>IP</span>
+              <select id="socialIpFilter"><option value="">Loading…</option></select>
+            </label>
+            <label class="field">
+              <span>Type</span>
+              <select id="socialTypeFilter"><option value="">All types</option></select>
+            </label>
+            <label class="field"><span>Piece 1</span><select id="socialRetro1"></select></label>
+            <label class="field"><span>Piece 2</span><select id="socialRetro2"></select></label>
+            <label class="field"><span>Piece 3</span><select id="socialRetro3"></select></label>
+            <label class="field"><span>Piece 4</span><select id="socialRetro4"></select></label>
           </div>
-          <button id="analyzeCombinedBtn" class="btn btn-primary">Run combined analysis</button>
+          <button type="button" id="analyzeSocialBtn" class="btn">Run analysis</button>
         </div>
-      </section>
-      <section class="panel premier-only" data-mode="premiers" hidden>
-        <div class="card">
-          <h2>Compare Premier Feedback</h2>
-          <select id="premierA"></select>
-          <select id="premierB"></select>
-          <button id="analyzePremierBtn" class="btn btn-primary">Compare Premier feedback</button>
-        </div>
-      </section>
-    </div>
+      </div>
 
-    <div id="socialInsights" class="platform-panel">
-      <div class="card">
-        <h2>Compare Social Retros</h2>
-        <p class="desc">Pick an IP and <strong>2–4 completed</strong> social pieces. AI blends retro insights with analytics.</p>
-        <div class="grid-2">
-          <div class="field">
-            <label for="socialPlatformFilter">Platform</label>
-            <select id="socialPlatformFilter">
-              <option value="">All platforms</option>
-              <option value="instagram">Instagram</option>
-              <option value="linkedin">LinkedIn</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="socialIpFilter">IP</label>
-            <select id="socialIpFilter"><option value="">Loading…</option></select>
-          </div>
-          <div class="field">
-            <label for="socialTypeFilter">Type (optional)</label>
-            <select id="socialTypeFilter">
-              <option value="">All types</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="socialRetro1">Piece 1</label>
-            <select id="socialRetro1"><option value="">Select IP first</option></select>
-          </div>
-          <div class="field">
-            <label for="socialRetro2">Piece 2</label>
-            <select id="socialRetro2"><option value="">Select IP first</option></select>
-          </div>
-          <div class="field">
-            <label for="socialRetro3">Piece 3 (optional)</label>
-            <select id="socialRetro3"><option value="">Optional</option></select>
-          </div>
-          <div class="field">
-            <label for="socialRetro4">Piece 4 (optional)</label>
-            <select id="socialRetro4"><option value="">Optional</option></select>
-          </div>
-        </div>
+      <p id="actionError" class="error"></p>
+
+      <div class="compare-flags-wrap">
+        <h3>Checklist flags (this compare)</h3>
+        <div id="checklistCompareFlags" class="compare-flags muted">Run analysis to see repeated anti-patterns.</div>
+      </div>
+
+      <div class="insights-block">
+        <h2>Insights</h2>
+        <textarea id="analysis" placeholder="Run analysis to see insights…"></textarea>
         <div class="actions">
-          <button id="analyzeSocialBtn" class="btn btn-primary">Run social analysis</button>
+          <button type="button" id="publishBtn" class="btn btn-solid" disabled>Publish to Slack</button>
         </div>
       </div>
-    </div>
 
-    <div id="actionError" class="error"></div>
-
-    <div class="card result-card">
-      <h2>Insights</h2>
-      <p class="desc">Pointed AI summary: repeated mistakes, improvements needed, overall verdict.</p>
-      <textarea id="analysis" placeholder="Run an analysis to see insights here…"></textarea>
-      <div class="actions">
-        <button id="publishBtn" class="btn btn-success" disabled>Publish to Slack thread</button>
+      <div class="premier-only" hidden aria-hidden="true">
+        <button type="button" id="analyzeCombinedBtn"></button>
+        <button type="button" id="analyzePremierBtn"></button>
+        <select id="combinedRetroA"></select>
+        <select id="combinedRetroB"></select>
+        <select id="combinedPremierA"></select>
+        <select id="combinedPremierB"></select>
+        <select id="premierA"></select>
+        <select id="premierB"></select>
       </div>
-    </div>
+    </section>
   </div>
 
   <div id="toast" class="toast"></div>

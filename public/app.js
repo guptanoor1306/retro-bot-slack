@@ -1,12 +1,13 @@
 const state = {
   retros: [],
-  premiers: [],
   youtubeIps: [],
   socialIps: [],
   publishRetroId: null,
-  mode: 'retros',
   platform: 'youtube',
+  mainView: 'checklist',
   checklist: null,
+  freqReport: null,
+  selectedAntiId: null,
 };
 
 const SOCIAL_TYPE_OPTIONS = {
@@ -31,6 +32,25 @@ const ALL_SOCIAL_TYPE_OPTIONS = [
 
 const $ = (id) => document.getElementById(id);
 
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function setMainView(view) {
+  state.mainView = view;
+  document.querySelectorAll('.view-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.view === view);
+  });
+  $('viewChecklist')?.classList.toggle('view-active', view === 'checklist');
+  $('viewChecklist')?.toggleAttribute('hidden', view !== 'checklist');
+  $('viewCompare')?.classList.toggle('view-active', view === 'compare');
+  $('viewCompare')?.toggleAttribute('hidden', view !== 'compare');
+}
+
 function showToast(msg) {
   const t = $('toast');
   t.textContent = msg;
@@ -43,10 +63,9 @@ function setPlatform(platform) {
   document.querySelectorAll('.platform-tab').forEach((t) => {
     t.classList.toggle('active', t.dataset.platform === platform);
   });
-  $('youtubeInsights').classList.toggle('active', platform === 'youtube');
-  $('socialInsights').classList.toggle('active', platform === 'social');
+  $('youtubeInsights')?.classList.toggle('platform-active', platform === 'youtube');
+  $('socialInsights')?.classList.toggle('platform-active', platform === 'social');
   $('actionError').textContent = '';
-  refreshChecklistFrequency().catch(() => {});
 }
 
 function retrosForPlatform(platform) {
@@ -79,6 +98,7 @@ async function loadData() {
     updateSocialTypeFilter();
     fillRetroSelects();
     fillSocialRetroSelects();
+    fillChecklistIpFilter();
     await loadChecklistPanel();
   } catch (e) {
     $('actionError').textContent = e.message;
@@ -108,11 +128,18 @@ function periodLabel(periodKey, granularity) {
   return periodKey;
 }
 
+function fillChecklistIpFilter() {
+  const el = $('checklistIpFilter');
+  if (!el) return;
+  const prev = el.value;
+  const ips = [...new Set(state.retros.map((r) => r.ip_name).filter(Boolean))].sort();
+  el.innerHTML = '<option value="">All IPs</option>'
+    + ips.map((ip) => `<option value="${escapeHtml(ip)}">${escapeHtml(ip)}</option>`).join('');
+  if (prev && ips.includes(prev)) el.value = prev;
+}
+
 function checklistIpForScope() {
-  const platformScope = $('checklistPlatformScope')?.value || '';
-  if (platformScope === 'social') return $('socialIpFilter')?.value || '';
-  if (platformScope === 'youtube') return $('ipFilter')?.value || '';
-  return '';
+  return $('checklistIpFilter')?.value || '';
 }
 
 function renderChecklistKpis(report) {
@@ -127,9 +154,89 @@ function renderChecklistKpis(report) {
   if ($('kpiWithAnti')) $('kpiWithAnti').textContent = String(withAnti);
 }
 
+function renderTimeline(report) {
+  const el = $('checklistTimeline');
+  if (!el) return;
+  const granularity = report?.period || 'month';
+  const periods = report?.periods || [];
+  const hits = (report?.anti_items || []).filter((item) => item.total_retros > 0);
+  if (!periods.length) {
+    el.innerHTML = '<p class="muted">No timeline data yet.</p>';
+    return;
+  }
+  const maxT = Math.max(...periods.map((p) => report.period_totals?.[p] || 0), 1);
+  el.innerHTML = periods.map((p) => {
+    const totalInPeriod = report.period_totals?.[p] ?? 0;
+    const h = Math.max(6, Math.round((totalInPeriod / maxT) * 88));
+    const title = `${periodLabel(p, granularity)}: ${totalInPeriod} piece(s) with any anti hit`;
+    return `
+      <div class="tl-col" title="${escapeHtml(title)}">
+        <div class="tl-bar" style="height:${h}px"></div>
+        <div class="tl-num">${totalInPeriod}</div>
+        <div class="tl-label">${escapeHtml(periodLabel(p, granularity))}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderPatternDrill(antiId) {
+  const report = state.freqReport;
+  const item = report?.anti_items?.find((i) => i.id === antiId);
+  const drill = $('patternDrill');
+  const body = $('patternDrillBody');
+  const flow = document.querySelector('.checklist-flow');
+  if (!item || !drill || !body) return;
+
+  state.selectedAntiId = antiId;
+  drill.hidden = false;
+  flow?.classList.add('has-drill');
+
+  const occ = item.occurrences || [];
+  const occurrencesHtml = occ.length
+    ? occ.map((o) => {
+        const ex = (o.excerpts || [])
+          .map((e) => `<dl class="excerpt"><dt>${escapeHtml(e.field)}</dt><dd>${escapeHtml(e.text)}</dd></dl>`)
+          .join('');
+        const ev = o.evidence
+          ? `<blockquote class="evidence">“${escapeHtml(o.evidence)}”</blockquote>`
+          : '';
+        const conf = o.confidence ? ` · match: ${escapeHtml(o.confidence)}` : '';
+        return `
+          <article class="occurrence">
+            <h4>${escapeHtml(o.video_name || 'Untitled')}</h4>
+            <p class="occurrence-meta">${escapeHtml(o.ip_name || '')} · ${escapeHtml(o.platform)} · ${escapeHtml(o.date || '')}${conf}</p>
+            ${ev}
+            ${ex || '<p class="muted">No retro text in sheet for this piece.</p>'}
+          </article>`;
+      }).join('')
+    : '<p class="muted">No occurrences stored.</p>';
+
+  body.innerHTML = `
+    <h2>${escapeHtml(item.label)}</h2>
+    <p class="drill-rule">${escapeHtml(item.description || '')}</p>
+    <div class="drill-action">
+      <strong>Team action</strong>
+      Before the next reel: scan your retro Bad/Actions for this pattern and fix it in the edit or brief — ${occ.length} piece(s) flagged recently.
+    </div>
+    <p class="flow-hint">${occ.length} piece(s) · click another row to switch</p>
+    ${occurrencesHtml}`;
+
+  document.querySelectorAll('.pattern-row').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.antiId === antiId);
+  });
+}
+
+function closePatternDrill() {
+  state.selectedAntiId = null;
+  $('patternDrill').hidden = true;
+  document.querySelector('.checklist-flow')?.classList.remove('has-drill');
+  document.querySelectorAll('.pattern-row').forEach((btn) => btn.classList.remove('is-active'));
+}
+
 function renderChecklistFrequency(report) {
   const el = $('checklistFrequency');
+  const metaEl = $('freqMeta');
   if (!el) return;
+  state.freqReport = report;
   renderChecklistKpis(report || {});
 
   const granularity = report?.period || 'month';
@@ -138,74 +245,43 @@ function renderChecklistFrequency(report) {
   const analyzed = report?.analyzed_count ?? scoped;
   const hits = (report?.anti_items || []).filter((item) => item.total_retros > 0);
 
+  if (metaEl) {
+    metaEl.textContent = `${periodName} · ${analyzed} analyzed of ${scoped} in scope · click a row for retro quotes`;
+  }
+
+  renderTimeline(report);
+
   if (!hits.length) {
-    el.innerHTML = `
-      <p class="freq-meta">${periodName} view · ${analyzed} analyzed of ${scoped} completed Shorts/Reel retros · matcher: ${report?.matcher || 'n/a'}</p>
-      <p class="muted">No anti-pattern hits in this scope yet.</p>`;
+    el.innerHTML = '<p class="muted">No anti-pattern hits in this scope yet.</p>';
+    closePatternDrill();
     return;
   }
 
   const maxPieces = Math.max(...hits.map((h) => h.total_retros), 1);
-  const topBars = hits
-    .slice(0, 8)
-    .map((item) => {
-      const pct = Math.round((item.total_retros / maxPieces) * 100);
-      const shortLabel = item.label.replace(/^[AC]\d+:\s*/, '');
-      return `
-        <div class="bar-row">
-          <div class="bar-label" title="${item.label}">${shortLabel}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-          <div class="bar-val">${item.total_retros}</div>
-        </div>`;
-    })
-    .join('');
-
-  const periods = report.periods || [];
-  const timeline = periods.map((p) => {
-    const totalInPeriod = report.period_totals?.[p]
-      ?? hits.reduce((sum, item) => sum + (item.by_period?.[p] || 0), 0);
-    const maxT = Math.max(...periods.map((pk) => report.period_totals?.[pk] || 0), 1);
-    const h = Math.max(8, Math.round((totalInPeriod / maxT) * 72));
+  el.innerHTML = hits.map((item) => {
+    const pct = Math.round((item.total_retros / maxPieces) * 100);
+    const active = state.selectedAntiId === item.id ? ' is-active' : '';
     return `
-      <div class="timeline-col" title="${periodLabel(p, granularity)}: ${totalInPeriod} piece(s) with anti hits">
-        <div class="timeline-bar" style="height:${h}px"></div>
-        <div class="timeline-lbl">${periodLabel(p, granularity)}</div>
-        <div class="timeline-num">${totalInPeriod}</div>
-      </div>`;
+      <button type="button" class="pattern-row${active}" data-anti-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}">
+        <div>
+          <div class="pattern-label">${escapeHtml(item.label)}</div>
+          <div class="pattern-meter">
+            <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
+          </div>
+        </div>
+        <div class="pattern-count">${item.total_retros}<small>pieces</small></div>
+      </button>`;
   }).join('');
 
-  const tableRows = hits.map((item) => {
-    const cells = [
-      item.label,
-      String(item.total_retros),
-      ...periods.map((p) => String(item.by_period?.[p] || 0)),
-    ];
-    return `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
-  }).join('');
+  el.querySelectorAll('.pattern-row').forEach((btn) => {
+    btn.addEventListener('click', () => renderPatternDrill(btn.dataset.antiId));
+  });
 
-  el.innerHTML = `
-    <p class="freq-meta">${periodName} buckets (IST) · ${analyzed} analyzed of ${scoped} in scope · ${report.retros_with_anti || 0} with anti hits</p>
-    <div class="chart-grid">
-      <div class="chart-panel">
-        <h4>Top anti-patterns <span class="muted">(pieces affected)</span></h4>
-        <div class="bar-chart">${topBars}</div>
-      </div>
-      <div class="chart-panel">
-        <h4>Pieces with anti hits over time</h4>
-        <div class="timeline-chart">${timeline || '<p class="muted">No periods yet</p>'}</div>
-      </div>
-    </div>
-    <details class="freq-table-wrap">
-      <summary>Table view</summary>
-      <table class="freq-table">
-        <thead><tr>
-          <th>Anti-pattern</th>
-          <th>Pieces</th>
-          ${periods.map((p) => `<th>${periodLabel(p, granularity)}</th>`).join('')}
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </details>`;
+  if (state.selectedAntiId && hits.some((h) => h.id === state.selectedAntiId)) {
+    renderPatternDrill(state.selectedAntiId);
+  } else {
+    closePatternDrill();
+  }
 }
 
 function renderChecklistCompareFlags(report) {
@@ -530,29 +606,34 @@ document.querySelectorAll('.platform-tab').forEach((tab) => {
   tab.addEventListener('click', () => setPlatform(tab.dataset.platform));
 });
 
-$('ipFilter')?.addEventListener('change', () => {
-  fillRetroSelects();
-  refreshChecklistFrequency().catch((e) => {
-    if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
-  });
+document.querySelectorAll('.view-tab').forEach((tab) => {
+  tab.addEventListener('click', () => setMainView(tab.dataset.view));
 });
+
+$('drillClose')?.addEventListener('click', closePatternDrill);
+
+$('ipFilter')?.addEventListener('change', () => fillRetroSelects());
 $('typeFilter')?.addEventListener('change', () => fillCompareRetroSelects());
 $('socialPlatformFilter')?.addEventListener('change', () => {
   updateSocialTypeFilter();
   fillSocialRetroSelects();
 });
-$('socialIpFilter')?.addEventListener('change', () => {
-  fillSocialRetroSelects();
+$('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
+$('checklistIpFilter')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
+  if ($('freqMeta')) $('freqMeta').textContent = e.message;
+}));
+$('checklistPeriod')?.addEventListener('change', () => {
+  state.selectedAntiId = null;
   refreshChecklistFrequency().catch((e) => {
-    if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
+    if ($('freqMeta')) $('freqMeta').textContent = e.message;
   });
 });
-$('checklistPeriod')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
-  if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
-}));
-$('checklistPlatformScope')?.addEventListener('change', () => refreshChecklistFrequency().catch((e) => {
-  if ($('checklistFrequency')) $('checklistFrequency').textContent = e.message;
-}));
+$('checklistPlatformScope')?.addEventListener('change', () => {
+  state.selectedAntiId = null;
+  refreshChecklistFrequency().catch((e) => {
+    if ($('freqMeta')) $('freqMeta').textContent = e.message;
+  });
+});
 $('socialTypeFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 
 $('analyzeBtn')?.addEventListener('click', runRetroCompare);
@@ -561,5 +642,6 @@ $('analyzeCombinedBtn')?.addEventListener('click', runCombinedCompare);
 $('analyzePremierBtn')?.addEventListener('click', runPremierCompare);
 $('publishBtn')?.addEventListener('click', publishToSlack);
 
+setMainView('checklist');
 setPlatform('youtube');
 loadData();
