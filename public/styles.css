@@ -106,30 +106,14 @@ body {
   position: relative;
 }
 
-.toolbar.is-loading select {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .checklist-flow.is-loading .pattern-row {
   pointer-events: none;
-}
-
-.loading-panel {
-  padding: 48px 16px;
-  text-align: center;
-}
-
-.loading-title {
-  margin: 16px 0 8px;
-  font-weight: 600;
-  font-size: 1rem;
 }
 
 .spinner {
   width: 28px;
   height: 28px;
-  margin: 0 auto;
+  margin: 0 auto 14px;
   border: 2px solid var(--line);
   border-top-color: var(--fg);
   border-radius: 50%;
@@ -138,19 +122,6 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.loading-shimmer {
-  height: 88px;
-  background: linear-gradient(90deg, var(--soft) 25%, #eee 50%, var(--soft) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.2s ease-in-out infinite;
-  border-radius: 4px;
-}
-
-@keyframes shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
 }
 
 .toolbar-field {
@@ -188,36 +159,15 @@ textarea:focus {
   position: relative;
 }
 
+.checklist-flow.is-loading {
+  min-height: 280px;
+}
+
 .checklist-flow.is-stale .flow-main,
 .checklist-flow.is-stale .drill {
-  opacity: 0.35;
-  filter: grayscale(0.2);
+  opacity: 0.4;
   pointer-events: none;
   user-select: none;
-}
-
-.load-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: -8px 0 24px;
-  padding: 12px 16px;
-  background: var(--fg);
-  color: var(--bg);
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 500;
-}
-
-.load-banner .spinner {
-  border-color: rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-}
-
-.spinner-sm {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
 }
 
 .load-overlay {
@@ -227,23 +177,20 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(2px);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.88);
 }
 
-.load-overlay-card {
+.load-overlay-inner {
   text-align: center;
-  padding: 28px 36px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  max-width: 340px;
+  max-width: 22rem;
+  padding: 8px 16px;
 }
 
-.load-overlay-card .loading-title {
-  margin: 14px 0 6px;
+.load-overlay-inner p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 @media (min-width: 900px) {

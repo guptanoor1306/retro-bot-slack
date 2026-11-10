@@ -192,7 +192,6 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
   state.freqLoading = loading;
   const label = activeFilterLabel();
   const toolbar = $('checklistToolbar');
-  toolbar?.classList.toggle('is-loading', loading);
   toolbar?.querySelectorAll('select').forEach((sel) => {
     sel.disabled = loading;
   });
@@ -201,48 +200,24 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
   flow?.classList.toggle('is-loading', loading);
   flow?.classList.toggle('is-stale', loading && Boolean(state.freqReport));
 
-  const banner = $('checklistLoadBanner');
-  const bannerText = $('checklistLoadBannerText');
   const overlay = $('checklistLoadOverlay');
-  const overlayTitle = $('loadOverlayTitle');
+  const overlayMsg = $('loadOverlayMsg');
 
   if (loading) {
     if (filterChange) {
       state.selectedAntiId = null;
       closePatternDrill();
     }
-    banner?.removeAttribute('hidden');
-    if (bannerText) {
-      bannerText.textContent = filterChange
-        ? `Filter changed — reloading checklist for ${label}`
-        : `Loading checklist for ${label}`;
-    }
-    if (overlayTitle) {
-      overlayTitle.textContent = filterChange
-        ? 'Applying new filters…'
-        : 'Loading checklist data…';
-    }
     overlay?.removeAttribute('hidden');
-    if ($('freqMeta')) $('freqMeta').textContent = 'Updating…';
+    if (overlayMsg) {
+      overlayMsg.textContent = state.freqReport
+        ? `Updating for ${label} — usually 30–90s with LLM`
+        : `Loading checklist for ${label} — usually 30–90s with LLM`;
+    }
     ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
       if ($(id)) $(id).textContent = '…';
     });
-
-    const el = $('checklistFrequency');
-    const hasData = el?.querySelector('.pattern-row');
-    if (el && !hasData) {
-      el.innerHTML = `
-        <div class="loading-panel" role="status" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <p class="loading-title">First load</p>
-          <p class="muted">Mapping retros to checklist items for ${escapeHtml(label)}.</p>
-        </div>`;
-    }
-    if ($('checklistTimeline') && !$('checklistTimeline').querySelector('.tl-col')) {
-      $('checklistTimeline').innerHTML = '<div class="loading-shimmer" aria-hidden="true"></div>';
-    }
   } else {
-    banner?.setAttribute('hidden', '');
     overlay?.setAttribute('hidden', '');
     flow?.classList.remove('is-stale');
   }
@@ -415,7 +390,8 @@ async function refreshChecklistFrequency({ filterChange = false } = {}) {
   } catch (e) {
     if (reqId === state.freqRequestId) {
       if ($('freqMeta')) $('freqMeta').textContent = e.message;
-      $('checklistLoadBannerText').textContent = `Update failed — ${e.message}`;
+      const overlayMsg = $('loadOverlayMsg');
+      if (overlayMsg) overlayMsg.textContent = e.message;
     }
     throw e;
   } finally {

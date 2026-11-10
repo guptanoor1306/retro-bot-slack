@@ -55,22 +55,16 @@
         </label>
       </div>
 
-      <div id="checklistLoadBanner" class="load-banner" hidden role="status" aria-live="polite">
-        <div class="spinner spinner-sm" aria-hidden="true"></div>
-        <span id="checklistLoadBannerText">Updating checklist…</span>
-      </div>
-
       <div class="checklist-flow" id="checklistFlow">
-        <div id="checklistLoadOverlay" class="load-overlay" hidden aria-hidden="true">
-          <div class="load-overlay-card" role="status">
+        <div id="checklistLoadOverlay" class="load-overlay" hidden>
+          <div class="load-overlay-inner" role="status" aria-live="polite">
             <div class="spinner" aria-hidden="true"></div>
-            <p class="loading-title" id="loadOverlayTitle">Refreshing checklist</p>
-            <p class="muted" id="loadOverlayHint">This usually takes 30–90 seconds when LLM runs on many retros.</p>
+            <p id="loadOverlayMsg">Updating checklist…</p>
           </div>
         </div>
         <div class="flow-main">
           <h2 class="flow-title">Anti-pattern frequency</h2>
-          <p class="flow-hint" id="freqMeta">Loading…</p>
+          <p class="flow-hint" id="freqMeta"></p>
           <div id="checklistFrequency" class="pattern-list"></div>
 
           <h2 class="flow-title spaced">Over time</h2>
