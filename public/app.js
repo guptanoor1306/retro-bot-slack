@@ -183,8 +183,12 @@ function currentPeriodKey(period) {
   return periodBucketKey(istTodayDateKey(), period);
 }
 
-function retroFilledDateClient(retro) {
-  return String(retro.completed_at || '').trim().slice(0, 10);
+function retroSchedulingDatesClient(retro) {
+  return [String(retro.release_date || '').trim().slice(0, 10), String(retro.opened_at || '').trim().slice(0, 10)].filter(Boolean);
+}
+
+function retroMatchesFocusPeriodClient(retro, granularity, focusBucket) {
+  return retroSchedulingDatesClient(retro).some((d) => periodBucketKey(d, granularity) === focusBucket);
 }
 
 function fillFocusPeriodSelect() {
@@ -197,9 +201,9 @@ function fillFocusPeriodSelect() {
   const ip = checklistIpForScope();
   if (ip) pool = pool.filter((r) => r.ip_name === ip);
   for (const r of pool) {
-    const filled = retroFilledDateClient(r);
-    if (!filled) continue;
-    buckets.add(periodBucketKey(filled, granularity));
+    for (const d of retroSchedulingDatesClient(r)) {
+      buckets.add(periodBucketKey(d, granularity));
+    }
   }
   const sorted = [...buckets].sort();
   const current = currentPeriodKey(granularity);
@@ -434,19 +438,19 @@ function renderChecklistFrequency(report) {
     titleEl.textContent = state.ledgerMode === 'do' ? 'Do checklist ledger' : 'Anti-pattern ledger';
   }
   if (metaEl) {
-    metaEl.textContent = `${ledgerLabel} · ${periodName} · retros filled ${focusPeriodLabel(report)} (completed_at) · ${analyzed} analyzed · click a row for matched lines`;
+    metaEl.textContent = `${ledgerLabel} · ${periodName} · release or triggered in ${focusPeriodLabel(report)} · ${analyzed} analyzed · click a row for matched lines`;
   }
 
   renderTimeline(report);
 
   if (!scoped) {
-    el.innerHTML = `<p class="muted">No complete retros were submitted in ${escapeHtml(focusPeriodLabel(report))} for these filters.</p>`;
+    el.innerHTML = `<p class="muted">No complete retros with release or trigger in ${escapeHtml(focusPeriodLabel(report))} for these filters.</p>`;
     closePatternDrill();
     return;
   }
 
   if (!hits.length) {
-    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits in retros filled ${escapeHtml(focusPeriodLabel(report))}.</p>`;
+    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits for retros in ${escapeHtml(focusPeriodLabel(report))}.</p>`;
     closePatternDrill();
     return;
   }

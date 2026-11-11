@@ -111,9 +111,20 @@ function retroDateKey(isoDate) {
   return String(isoDate).trim().slice(0, 10);
 }
 
-/** When the team finished the retro form (not video release date). */
-function retroFilledDate(retro) {
-  return retroDateKey(retro.completed_at);
+/** Dates that place a retro in a week/month/year (release or when the retro was triggered). */
+function retroSchedulingDates(retro) {
+  return [retroDateKey(retro.release_date), retroDateKey(retro.opened_at)].filter(Boolean);
+}
+
+function retroMatchesFocusPeriod(retro, period, focusBucket) {
+  return retroSchedulingDates(retro).some((d) => periodBucket(d, period) === focusBucket);
+}
+
+function retroPeriodAnchorDate(retro, period, focusBucket) {
+  for (const d of retroSchedulingDates(retro)) {
+    if (periodBucket(d, period) === focusBucket) return d;
+  }
+  return retroSchedulingDates(retro)[0] || '';
 }
 
 function istTodayDateKey() {
@@ -133,9 +144,9 @@ function currentPeriodBucket(period) {
 function listFilledPeriodBuckets(retros, period) {
   const set = new Set([currentPeriodBucket(period)]);
   for (const retro of retros) {
-    const filled = retroFilledDate(retro);
-    if (!filled) continue;
-    set.add(periodBucket(filled, period));
+    for (const d of retroSchedulingDates(retro)) {
+      set.add(periodBucket(d, period));
+    }
   }
   return [...set].sort();
 }
@@ -180,7 +191,7 @@ function appendPatternOccurrence(hit, pattern, retro, bucket, responses) {
     ip_name: retro.ip_name,
     platform: getRetroPlatform(retro) || 'youtube',
     social_platform: retro.social_platform || '',
-    date: retroFilledDate(retro),
+    date: retroDateKey(retro.release_date) || retroDateKey(retro.opened_at),
     bucket,
     evidence,
     confidence: pattern.confidence || '',
@@ -323,10 +334,7 @@ async function buildAntiFrequencyReportAsync({
   }
 
   const focusBucket = focusPeriod || currentPeriodBucket(period);
-  scoped = scoped.filter((r) => {
-    const filled = retroFilledDate(r);
-    return filled && periodBucket(filled, period) === focusBucket;
-  });
+  scoped = scoped.filter((r) => retroMatchesFocusPeriod(r, period, focusBucket));
 
   const antiCounts = new Map();
   const checkCounts = new Map();
@@ -349,7 +357,8 @@ async function buildAntiFrequencyReportAsync({
   const retrosWithDo = new Set();
 
   for (const retro of scoped) {
-    const bucket = periodBucket(retroFilledDate(retro), period);
+    const anchor = retroPeriodAnchorDate(retro, period, focusBucket);
+    const bucket = periodBucket(anchor, period);
     if (!bucket) continue;
     const responses = responsesByRetro.get(retro.retro_id) || [];
     const analysis = await analyzeRetroChecklistAsync({ retro, responses });
@@ -400,7 +409,7 @@ async function buildAntiFrequencyReportAsync({
     period,
     focus_period: focusBucket,
     focus_period_label: focusBucket,
-    filled_date_field: 'completed_at',
+    period_date_fields: 'release_date, opened_at',
     title: def.title,
     scoped_count: scopedTotal,
     analyzed_count: scoped.length,
@@ -571,7 +580,8 @@ function formatChecklistReportForPrompt(report) {
 module.exports = {
   loadChecklistDefinition,
   retroMatchesChecklistScope,
-  retroFilledDate,
+  retroSchedulingDates,
+  retroMatchesFocusPeriod,
   periodBucket,
   currentPeriodBucket,
   listFilledPeriodBuckets,

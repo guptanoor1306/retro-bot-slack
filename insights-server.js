@@ -43,6 +43,7 @@ function mapRetro(r) {
     video_type: r.video_type,
     video_type_label: formatRetroTypeLabel(r),
     release_date: r.release_date,
+    opened_at: r.opened_at,
     completed_at: r.completed_at,
     status: r.status,
     channel_id: r.channel_id,
