@@ -76,7 +76,12 @@
   padding: var(--space-md) var(--space-lg);
   background: var(--color-cotton);
   border: var(--rule-hair) solid var(--color-rule);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.performance-spotlight--ledger {
+  margin-bottom: var(--space-xl);
 }
 
 .performance-spotlight-idle {
@@ -93,7 +98,7 @@
 .performance-card {
   margin: 0;
   padding: var(--space-md);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-card);
   border: var(--rule-hair) solid var(--color-rule);
   background: var(--color-paper);
 }

@@ -450,7 +450,7 @@ function resetPerformanceSpotlight() {
   if (!el) return;
   el.classList.add('muted');
   el.innerHTML =
-    '<p class="performance-spotlight-idle">Best and worst skip rate in scope appear here after Run analysis (social reels need skip/follow in retro analytics).</p>';
+    '<p class="performance-spotlight-idle">Shows here after Run analysis. Uses skip/follow from retro analytics for reels in scope.</p>';
 }
 
 async function refreshChecklistFrequency({ filterChange = false } = {}) {
