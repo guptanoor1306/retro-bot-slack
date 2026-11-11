@@ -86,6 +86,7 @@ app.get('/api/checklist/anti-frequency', asyncHandler(async (req, res) => {
     period: ['week', 'year'].includes(req.query.period) ? req.query.period : 'month',
     ip: req.query.ip || '',
     platform: req.query.platform || '',
+    focus_period: req.query.focus_period || '',
   });
   res.json(report);
 }));

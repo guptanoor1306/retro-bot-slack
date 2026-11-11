@@ -111,6 +111,35 @@ function retroDateKey(isoDate) {
   return String(isoDate).trim().slice(0, 10);
 }
 
+/** When the team finished the retro form (not video release date). */
+function retroFilledDate(retro) {
+  return retroDateKey(retro.completed_at);
+}
+
+function istTodayDateKey() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** Calendar week/month/year bucket for today (IST). */
+function currentPeriodBucket(period) {
+  return periodBucket(istTodayDateKey(), period);
+}
+
+function listFilledPeriodBuckets(retros, period) {
+  const set = new Set([currentPeriodBucket(period)]);
+  for (const retro of retros) {
+    const filled = retroFilledDate(retro);
+    if (!filled) continue;
+    set.add(periodBucket(filled, period));
+  }
+  return [...set].sort();
+}
+
 /** Bucket keys for charts (week = Monday start, IST calendar date from sheet). */
 function periodBucket(isoDate, period) {
   const d = retroDateKey(isoDate);
@@ -151,7 +180,7 @@ function appendPatternOccurrence(hit, pattern, retro, bucket, responses) {
     ip_name: retro.ip_name,
     platform: getRetroPlatform(retro) || 'youtube',
     social_platform: retro.social_platform || '',
-    date: retroDateKey(retro.completed_at || retro.release_date),
+    date: retroFilledDate(retro),
     bucket,
     evidence,
     confidence: pattern.confidence || '',
@@ -276,6 +305,7 @@ async function buildAntiFrequencyReportAsync({
   period = 'month',
   ip = '',
   platform = '',
+  focus_period: focusPeriod = '',
 } = {}) {
   const def = loadChecklistDefinition();
   const [retros, responses] = await Promise.all([getAllRetros(), getAllResponses()]);
@@ -291,6 +321,12 @@ async function buildAntiFrequencyReportAsync({
   if (platform) {
     scoped = scoped.filter((r) => (getRetroPlatform(r) || 'youtube') === platform);
   }
+
+  const focusBucket = focusPeriod || currentPeriodBucket(period);
+  scoped = scoped.filter((r) => {
+    const filled = retroFilledDate(r);
+    return filled && periodBucket(filled, period) === focusBucket;
+  });
 
   const antiCounts = new Map();
   const checkCounts = new Map();
@@ -313,7 +349,7 @@ async function buildAntiFrequencyReportAsync({
   const retrosWithDo = new Set();
 
   for (const retro of scoped) {
-    const bucket = periodBucket(retro.completed_at || retro.release_date, period);
+    const bucket = periodBucket(retroFilledDate(retro), period);
     if (!bucket) continue;
     const responses = responsesByRetro.get(retro.retro_id) || [];
     const analysis = await analyzeRetroChecklistAsync({ retro, responses });
@@ -362,6 +398,9 @@ async function buildAntiFrequencyReportAsync({
 
   return {
     period,
+    focus_period: focusBucket,
+    focus_period_label: focusBucket,
+    filled_date_field: 'completed_at',
     title: def.title,
     scoped_count: scopedTotal,
     analyzed_count: scoped.length,
@@ -532,6 +571,10 @@ function formatChecklistReportForPrompt(report) {
 module.exports = {
   loadChecklistDefinition,
   retroMatchesChecklistScope,
+  retroFilledDate,
+  periodBucket,
+  currentPeriodBucket,
+  listFilledPeriodBuckets,
   analyzeRetroChecklistAsync,
   checklistMatchMode,
   buildAntiFrequencyReportAsync,

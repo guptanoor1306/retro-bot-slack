@@ -103,6 +103,7 @@ async function loadData() {
     fillRetroSelects();
     fillSocialRetroSelects();
     fillChecklistIpFilter();
+    fillFocusPeriodSelect();
     await loadChecklistPanel();
   } catch (e) {
     $('actionError').textContent = e.message;
@@ -153,45 +154,68 @@ function fillChecklistIpFilter() {
   else if (prev && !ips.includes(prev)) el.value = '';
 }
 
-function itemRetroCount(item, focusPeriod) {
-  if (!focusPeriod) return item.total_retros;
-  const ids = new Set();
-  for (const o of item.occurrences || []) {
-    if (o.bucket === focusPeriod && o.retro_id) ids.add(o.retro_id);
-  }
-  return ids.size;
+function istTodayDateKey() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
-function syncFocusPeriodOptions(report) {
+function periodBucketKey(isoDate, period) {
+  const d = String(isoDate || '').trim().slice(0, 10);
+  if (!d) return '';
+  if (period === 'year') return d.slice(0, 4);
+  if (period === 'week') {
+    const dt = new Date(`${d}T12:00:00+05:30`);
+    const day = dt.getDay() || 7;
+    dt.setDate(dt.getDate() - day + 1);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const dayNum = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayNum}`;
+  }
+  return d.slice(0, 7);
+}
+
+function currentPeriodKey(period) {
+  return periodBucketKey(istTodayDateKey(), period);
+}
+
+function retroFilledDateClient(retro) {
+  return String(retro.completed_at || '').trim().slice(0, 10);
+}
+
+function fillFocusPeriodSelect() {
   const el = $('checklistFocusPeriod');
-  const field = $('checklistFocusPeriodField');
-  const periods = report?.periods || [];
-  if (!el || !field) return;
-  if (!periods.length) {
-    field.hidden = true;
-    state.focusPeriod = '';
-    return;
+  if (!el) return;
+  const granularity = $('checklistPeriod')?.value || 'month';
+  const prev = el.value;
+  const buckets = new Set([currentPeriodKey(granularity)]);
+  let pool = retrosInChecklistScope();
+  const ip = checklistIpForScope();
+  if (ip) pool = pool.filter((r) => r.ip_name === ip);
+  for (const r of pool) {
+    const filled = retroFilledDateClient(r);
+    if (!filled) continue;
+    buckets.add(periodBucketKey(filled, granularity));
   }
-  field.hidden = false;
-  const prev = state.focusPeriod || el.value;
-  el.innerHTML =
-    '<option value="">All periods</option>'
-    + periods
-      .map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(periodLabel(p, report.period))}</option>`)
-      .join('');
-  const latest = periods[periods.length - 1];
-  if (prev && periods.includes(prev)) {
-    el.value = prev;
-    state.focusPeriod = prev;
-  } else {
-    el.value = latest;
-    state.focusPeriod = latest;
-  }
+  const sorted = [...buckets].sort();
+  const current = currentPeriodKey(granularity);
+  el.innerHTML = sorted
+    .map((p) => {
+      const mark = p === current ? ' (current)' : '';
+      return `<option value="${escapeHtml(p)}">${escapeHtml(periodLabel(p, granularity))}${mark}</option>`;
+    })
+    .join('');
+  if (prev && sorted.includes(prev)) el.value = prev;
+  else el.value = current;
+  state.focusPeriod = el.value;
 }
 
 function focusPeriodLabel(report) {
-  const key = state.focusPeriod;
-  if (!key) return 'all periods';
+  const key = report?.focus_period || state.focusPeriod || currentPeriodKey(report?.period || 'month');
   return periodLabel(key, report?.period || 'month');
 }
 
@@ -323,10 +347,7 @@ function renderPatternDrill(patternId) {
   drill.hidden = false;
   flow?.classList.add('has-drill');
 
-  let occ = item.occurrences || [];
-  if (state.focusPeriod) {
-    occ = occ.filter((o) => o.bucket === state.focusPeriod);
-  }
+  const occ = item.occurrences || [];
   const occurrencesHtml = occ.length
     ? occ.map((o) => {
         const links = [];
@@ -396,7 +417,10 @@ function renderChecklistFrequency(report) {
   const titleEl = $('ledgerTitle');
   if (!el) return;
   state.freqReport = report;
-  syncFocusPeriodOptions(report);
+  if (report.focus_period && $('checklistFocusPeriod')) {
+    $('checklistFocusPeriod').value = report.focus_period;
+    state.focusPeriod = report.focus_period;
+  }
   renderChecklistKpis(report || {});
 
   const granularity = report?.period || 'month';
@@ -404,31 +428,33 @@ function renderChecklistFrequency(report) {
   const scoped = report?.scoped_count ?? report?.retro_count ?? 0;
   const analyzed = report?.analyzed_count ?? scoped;
   const ledgerLabel = state.ledgerMode === 'do' ? 'Do (C)' : 'Anti (A)';
-  const focus = state.focusPeriod;
-  const withCount = ledgerItems(report)
-    .map((item) => ({ item, count: itemRetroCount(item, focus) }))
-    .filter((row) => row.count > 0);
-  const hits = withCount.map((row) => row.item);
+  const hits = ledgerItems(report).filter((item) => item.total_retros > 0);
 
   if (titleEl) {
     titleEl.textContent = state.ledgerMode === 'do' ? 'Do checklist ledger' : 'Anti-pattern ledger';
   }
   if (metaEl) {
-    metaEl.textContent = `${ledgerLabel} · ${periodName} · counts in ${focusPeriodLabel(report)} · ${analyzed} analyzed of ${scoped} · click a row for matched lines`;
+    metaEl.textContent = `${ledgerLabel} · ${periodName} · retros filled ${focusPeriodLabel(report)} (completed_at) · ${analyzed} analyzed · click a row for matched lines`;
   }
 
   renderTimeline(report);
 
-  if (!hits.length) {
-    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits for ${escapeHtml(focusPeriodLabel(report))} in this scope. Try “All periods” or change filters and Run analysis.</p>`;
+  if (!scoped) {
+    el.innerHTML = `<p class="muted">No complete retros were submitted in ${escapeHtml(focusPeriodLabel(report))} for these filters.</p>`;
     closePatternDrill();
     return;
   }
 
-  const maxPieces = Math.max(...withCount.map((r) => r.count), 1);
+  if (!hits.length) {
+    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits in retros filled ${escapeHtml(focusPeriodLabel(report))}.</p>`;
+    closePatternDrill();
+    return;
+  }
+
+  const maxPieces = Math.max(...hits.map((h) => h.total_retros), 1);
   const rowClass = state.ledgerMode === 'do' ? 'pattern-row pattern-row-do' : 'pattern-row';
-  el.innerHTML = withCount.map(({ item, count }) => {
-    const pct = Math.round((count / maxPieces) * 100);
+  el.innerHTML = hits.map((item) => {
+    const pct = Math.round((item.total_retros / maxPieces) * 100);
     const active = state.selectedPatternId === item.id ? ' is-active' : '';
     return `
       <button type="button" class="${rowClass}${active}" data-pattern-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}">
@@ -438,7 +464,7 @@ function renderChecklistFrequency(report) {
             <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
           </div>
         </div>
-        <div class="pattern-count">${count}<small>pieces</small></div>
+        <div class="pattern-count">${item.total_retros}<small>pieces</small></div>
       </button>`;
   }).join('');
 
@@ -541,7 +567,8 @@ async function refreshChecklistFrequency({ filterChange = false } = {}) {
     const period = $('checklistPeriod')?.value || 'month';
     const platform = $('checklistPlatformScope')?.value || '';
     const ip = checklistIpForScope();
-    const qs = new URLSearchParams({ period, platform });
+    const focusPeriod = $('checklistFocusPeriod')?.value || currentPeriodKey(period);
+    const qs = new URLSearchParams({ period, platform, focus_period: focusPeriod });
     if (ip) qs.set('ip', ip);
     const perfQs = new URLSearchParams({ platform });
     if (ip) perfQs.set('ip', ip);
@@ -907,20 +934,21 @@ function markChecklistFiltersDirty() {
 }
 
 $('checklistIpFilter')?.addEventListener('change', () => {
+  fillFocusPeriodSelect();
   markChecklistFiltersDirty();
   refreshPerformanceOnly();
 });
-$('checklistPeriod')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistPeriod')?.addEventListener('change', () => {
+  fillFocusPeriodSelect();
+  markChecklistFiltersDirty();
+});
 $('checklistPlatformScope')?.addEventListener('change', () => {
   fillChecklistIpFilter();
+  fillFocusPeriodSelect();
   markChecklistFiltersDirty();
   refreshPerformanceOnly();
 });
-$('checklistFocusPeriod')?.addEventListener('change', () => {
-  state.focusPeriod = $('checklistFocusPeriod')?.value || '';
-  state.selectedPatternId = null;
-  if (state.freqReport) renderChecklistFrequency(state.freqReport);
-});
+$('checklistFocusPeriod')?.addEventListener('change', markChecklistFiltersDirty);
 $('checklistLedgerMode')?.addEventListener('change', () => {
   state.ledgerMode = $('checklistLedgerMode')?.value === 'do' ? 'do' : 'anti';
   state.selectedPatternId = null;
