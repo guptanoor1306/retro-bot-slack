@@ -394,6 +394,65 @@ function renderChecklistCompareFlags(report) {
     .join('');
 }
 
+function renderPerformanceSpotlight(data) {
+  const el = $('performanceSpotlight');
+  if (!el) return;
+  if (!data?.best && !data?.worst) {
+    el.innerHTML = `<p class="performance-spotlight-idle">${escapeHtml(
+      data?.note || 'No skip-rate analytics in scope for these filters.',
+    )}</p>`;
+    return;
+  }
+
+  const fmtSkip = (row) => row.skip_rate_label || (row.skip_rate != null ? `${row.skip_rate}%` : '—');
+  const fmtFollow = (row, extras = {}) => {
+    const base = row.follow_rate_label || (row.follow_rate != null ? String(row.follow_rate) : '');
+    if (extras.follow_vs_avg != null && Number.isFinite(extras.follow_vs_avg)) {
+      return `${base || '—'} (${extras.follow_vs_avg}× scope avg)`;
+    }
+    return base || '—';
+  };
+  const links = (row) => {
+    const bits = [];
+    if (row.post_link) bits.push(`<a href="${escapeHtml(row.post_link)}" target="_blank" rel="noopener">Post</a>`);
+    if (row.slack_thread_link) {
+      bits.push(`<a href="${escapeHtml(row.slack_thread_link)}" target="_blank" rel="noopener">Slack</a>`);
+    }
+    return bits.length ? bits.join(' · ') : '';
+  };
+  const card = (kind, title, row, extras = {}) => `
+    <article class="performance-card ${kind}">
+      <h3>${escapeHtml(title)}</h3>
+      <p class="video-title">${escapeHtml(row.video_name || 'Untitled')}</p>
+      <p class="performance-meta">Skip ${escapeHtml(fmtSkip(row))} · Follow ${escapeHtml(fmtFollow(row, extras))}${
+    row.release_date ? ` · ${escapeHtml(row.release_date)}` : ''
+  }${row.status && row.status !== 'complete' ? ' · in progress' : ''}</p>
+      ${links(row) ? `<p class="performance-meta">${links(row)}</p>` : ''}
+    </article>`;
+
+  const scopeBits = [];
+  if (data.avg_skip != null) scopeBits.push(`avg skip ${data.avg_skip}%`);
+  if (data.with_metrics != null && data.scoped_count != null) {
+    scopeBits.push(`${data.with_metrics} of ${data.scoped_count} with analytics`);
+  }
+
+  el.innerHTML = `
+    <div class="performance-cards">
+      ${card('best', 'Lowest skip (best)', data.best, { follow_vs_avg: data.best.follow_vs_avg })}
+      ${card('worst', 'Highest skip (worst)', data.worst)}
+    </div>
+    ${scopeBits.length ? `<p class="performance-scope-note">${escapeHtml(scopeBits.join(' · '))}</p>` : ''}`;
+  el.classList.remove('muted');
+}
+
+function resetPerformanceSpotlight() {
+  const el = $('performanceSpotlight');
+  if (!el) return;
+  el.classList.add('muted');
+  el.innerHTML =
+    '<p class="performance-spotlight-idle">Best and worst skip rate in scope appear here after Run analysis (social reels need skip/follow in retro analytics).</p>';
+}
+
 async function refreshChecklistFrequency({ filterChange = false } = {}) {
   const reqId = ++state.freqRequestId;
   setFreqLoading(true, { filterChange });
@@ -405,6 +464,17 @@ async function refreshChecklistFrequency({ filterChange = false } = {}) {
     const ip = checklistIpForScope();
     const qs = new URLSearchParams({ period, platform });
     if (ip) qs.set('ip', ip);
+    const perfQs = new URLSearchParams({ platform });
+    if (ip) perfQs.set('ip', ip);
+    void fetch(`/api/checklist/performance?${perfQs}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (reqId === state.freqRequestId) renderPerformanceSpotlight(data);
+      })
+      .catch(() => {
+        if (reqId === state.freqRequestId) resetPerformanceSpotlight();
+      });
+
     const res = await fetch(`/api/checklist/anti-frequency?${qs}`);
     const report = await res.json();
     if (reqId !== state.freqRequestId) return;
@@ -439,6 +509,7 @@ function showChecklistIdleState() {
   });
   state.freqReport = null;
   closePatternDrill();
+  resetPerformanceSpotlight();
 }
 
 async function loadChecklistPanel() {

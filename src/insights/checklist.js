@@ -7,6 +7,8 @@ const {
   logInfo,
   formatMemberLabel,
   slackThreadPermalink,
+  parseAnalyticsJson,
+  mergeMemberAnalytics,
 } = require('../utils');
 const { classifyRetroAgainstChecklist, checklistMatchMode } = require('./checklistLlm');
 
@@ -181,6 +183,93 @@ function rollupPatternItems(defItems, hitStore, metaById) {
       };
     })
     .sort((a, b) => b.total_retros - a.total_retros);
+}
+
+function parseAnalyticsNumber(val) {
+  if (val == null || val === '') return null;
+  const chunk = String(val).trim().split(/[|/]/)[0].trim();
+  const s = chunk.replace(/%/g, '').replace(/,/g, '');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function buildChecklistPerformanceHighlights({ ip = '', platform = '' } = {}) {
+  const [retros, responses] = await Promise.all([getAllRetros(), getAllResponses()]);
+  const responsesByRetro = new Map();
+  for (const r of responses) {
+    if (!responsesByRetro.has(r.retro_id)) responsesByRetro.set(r.retro_id, []);
+    responsesByRetro.get(r.retro_id).push(r);
+  }
+
+  let scoped = retros.filter((r) => retroMatchesChecklistScope(r));
+  if (ip) scoped = scoped.filter((r) => r.ip_name?.toLowerCase() === ip.toLowerCase());
+  if (platform) {
+    scoped = scoped.filter((r) => (getRetroPlatform(r) || 'youtube') === platform);
+  }
+
+  const rows = [];
+  for (const retro of scoped) {
+    const members = (responsesByRetro.get(retro.retro_id) || []).map((r) => ({
+      analytics: parseAnalyticsJson(r.analytics_json),
+    }));
+    const analytics = mergeMemberAnalytics(members);
+    const skipRate = parseAnalyticsNumber(analytics.skip_rate);
+    const followRate = parseAnalyticsNumber(analytics.follow_rate);
+    if (skipRate == null && followRate == null) continue;
+
+    rows.push({
+      retro_id: retro.retro_id,
+      video_name: retro.video_name,
+      ip_name: retro.ip_name,
+      status: retro.status,
+      platform: getRetroPlatform(retro) || 'youtube',
+      release_date: retroDateKey(retro.completed_at || retro.release_date),
+      skip_rate: skipRate,
+      follow_rate: followRate,
+      skip_rate_label: String(analytics.skip_rate || '').trim(),
+      follow_rate_label: String(analytics.follow_rate || '').trim(),
+      post_link: String(retro.link || '').trim(),
+      slack_thread_link: slackThreadPermalink(retro.channel_id, retro.thread_ts),
+    });
+  }
+
+  const withSkip = rows.filter((r) => r.skip_rate != null);
+  if (!withSkip.length) {
+    return {
+      scoped_count: scoped.length,
+      with_metrics: 0,
+      metric: 'skip_rate',
+      note: 'Add skip rate (and follow rate) in retro analytics to rank pieces here.',
+      best: null,
+      worst: null,
+      avg_skip: null,
+      avg_follow: null,
+    };
+  }
+
+  const avgSkip = withSkip.reduce((sum, r) => sum + r.skip_rate, 0) / withSkip.length;
+  const withFollow = rows.filter((r) => r.follow_rate != null);
+  const avgFollow = withFollow.length
+    ? withFollow.reduce((sum, r) => sum + r.follow_rate, 0) / withFollow.length
+    : null;
+
+  const best = withSkip.reduce((a, b) => (a.skip_rate <= b.skip_rate ? a : b));
+  const worst = withSkip.reduce((a, b) => (a.skip_rate >= b.skip_rate ? a : b));
+
+  return {
+    scoped_count: scoped.length,
+    with_metrics: withSkip.length,
+    metric: 'skip_rate',
+    avg_skip: Math.round(avgSkip * 10) / 10,
+    avg_follow: avgFollow != null ? Math.round(avgFollow * 1000) / 1000 : null,
+    best: {
+      ...best,
+      follow_vs_avg: best.follow_rate != null && avgFollow
+        ? Math.round((best.follow_rate / avgFollow) * 10) / 10
+        : null,
+    },
+    worst,
+  };
 }
 
 async function buildAntiFrequencyReportAsync({
@@ -446,6 +535,7 @@ module.exports = {
   analyzeRetroChecklistAsync,
   checklistMatchMode,
   buildAntiFrequencyReportAsync,
+  buildChecklistPerformanceHighlights,
   buildComparisonChecklistReport,
   formatChecklistReportForPrompt,
 };

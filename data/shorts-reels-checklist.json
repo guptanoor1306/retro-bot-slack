@@ -191,6 +191,25 @@
       ]
     },
     {
+      "id": "visual_hook_payoff_header",
+      "label": "C13: Visual hook lands early; payoff header readable in first seconds",
+      "description": "The visual hook and payoff header should land in the opening seconds so viewers know what they get. When the hook is slow, unclear or the payoff header is late, skip rises sharply.",
+      "signals": [
+        "visual hook missed",
+        "hook slow",
+        "slow hook",
+        "payoff header late",
+        "header came too late",
+        "visual hook weak",
+        "hook saaf nahi tha",
+        "payoff clear in header",
+        "visual hook landed",
+        "hook + payoff header",
+        "best skip in months",
+        "hook early and clear"
+      ]
+    },
+    {
       "id": "short_cta_at_end",
       "label": "C12: CTA at the end, kept short",
       "description": "Put the CTA at the end and keep it short. Mid-reel CTAs caused immediate retention drops.",
@@ -326,6 +345,22 @@
         "change footage and first 3 sec",
         "PS to Zero1 audience switch",
         "duplicate content"
+      ]
+    },
+    {
+      "id": "visual_hook_missed_slow",
+      "label": "C13 miss: Visual hook missed or slow",
+      "description": "When the visual hook is weak, slow or the payoff header lands late, skip rises. Often called out separately from generic payoff-first issues.",
+      "signals": [
+        "visual hook missed",
+        "hook slow",
+        "slow hook",
+        "visual hook weak",
+        "payoff header late",
+        "header came too late",
+        "hook saaf nahi tha",
+        "opening felt slow",
+        "no clear hook in first seconds"
       ]
     },
     {

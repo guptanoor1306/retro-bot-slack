@@ -15,6 +15,7 @@ const { analyzeRetroComparison, analyzeCombined, analyzePremierComparison, analy
 const {
   loadChecklistDefinition,
   buildAntiFrequencyReportAsync,
+  buildChecklistPerformanceHighlights,
   buildComparisonChecklistReport,
 } = require('./src/insights/checklist');
 const { publishInsightsToThread } = require('./src/insights/slack');
@@ -87,6 +88,14 @@ app.get('/api/checklist/anti-frequency', asyncHandler(async (req, res) => {
     platform: req.query.platform || '',
   });
   res.json(report);
+}));
+
+app.get('/api/checklist/performance', asyncHandler(async (req, res) => {
+  const highlights = await buildChecklistPerformanceHighlights({
+    ip: req.query.ip || '',
+    platform: req.query.platform || '',
+  });
+  res.json(highlights);
 }));
 
 app.get('/api/premier/sessions', asyncHandler(async (req, res) => {
