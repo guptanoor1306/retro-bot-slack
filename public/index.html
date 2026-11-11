@@ -26,9 +26,17 @@
         <div class="stat-cell"><dt>In scope</dt><dd class="num" id="kpiScoped">0</dd></div>
         <div class="stat-cell"><dt>Analyzed</dt><dd class="num" id="kpiAnalyzed">0</dd></div>
         <div class="stat-cell"><dt>With anti hits</dt><dd class="num" id="kpiWithAnti">0</dd></div>
+        <div class="stat-cell"><dt>With do hits</dt><dd class="num" id="kpiWithDo">0</dd></div>
       </dl>
 
       <div class="toolbar" id="checklistToolbar">
+        <label class="toolbar-field">
+          <span>Ledger</span>
+          <select id="checklistLedgerMode">
+            <option value="anti" selected>Anti (A)</option>
+            <option value="do">Do (C)</option>
+          </select>
+        </label>
         <label class="toolbar-field">
           <span>Frequency view</span>
           <select id="checklistPeriod">
@@ -62,7 +70,7 @@
           </div>
         </div>
         <div class="flow-main">
-          <h2 class="flow-title">Anti-pattern ledger</h2>
+          <h2 class="flow-title" id="ledgerTitle">Checklist ledger</h2>
           <p class="flow-hint" id="freqMeta"></p>
           <div id="checklistFrequency" class="pattern-list"></div>
 

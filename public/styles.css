@@ -142,15 +142,15 @@ textarea:focus-visible {
 .btn {
   height: 3rem;
   padding: 0 var(--space-lg);
-  border: none;
+  border: var(--rule-hair) solid var(--color-rule-2);
   border-radius: var(--radius-card);
   font-weight: 500;
   font-size: var(--text-sm);
   cursor: pointer;
-  background: var(--color-cotton);
+  background: transparent;
   color: var(--color-ink);
-  box-shadow: var(--edge-stock), var(--cast-stock);
-  transition: transform var(--dur-micro) var(--ease-out), box-shadow var(--dur-micro) var(--ease-out);
+  box-shadow: none;
+  transition: transform var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out);
 }
 
 .btn:hover:not(:disabled) {
@@ -322,6 +322,10 @@ textarea:focus-visible {
   height: 100%;
   background: var(--color-accent-2);
   border-radius: 2px;
+}
+
+.pattern-row-do .meter-fill {
+  background: var(--color-success);
 }
 
 .pattern-count {

@@ -7,7 +7,8 @@ const state = {
   mainView: 'checklist',
   checklist: null,
   freqReport: null,
-  selectedAntiId: null,
+  selectedPatternId: null,
+  ledgerMode: 'anti',
   freqLoading: false,
   freqRequestId: 0,
 };
@@ -144,16 +145,25 @@ function checklistIpForScope() {
   return $('checklistIpFilter')?.value || '';
 }
 
+function ledgerItems(report) {
+  if (!report) return [];
+  return state.ledgerMode === 'do'
+    ? (report.check_items || [])
+    : (report.anti_items || []);
+}
+
 function renderChecklistKpis(report) {
   const scoped = report.scoped_count ?? report.retro_count ?? 0;
   const analyzed = report.analyzed_count ?? scoped;
   const withAnti = report.retros_with_anti ?? 0;
+  const withDo = report.retros_with_do ?? 0;
   if ($('kpiScoped')) $('kpiScoped').textContent = String(scoped);
   if ($('kpiAnalyzed')) {
     $('kpiAnalyzed').textContent = analyzed < scoped ? `${analyzed}*` : String(analyzed);
     $('kpiAnalyzed').title = analyzed < scoped ? `Capped analysis; set CHECKLIST_FREQ_MAX_RETROS=0 for all` : '';
   }
   if ($('kpiWithAnti')) $('kpiWithAnti').textContent = String(withAnti);
+  if ($('kpiWithDo')) $('kpiWithDo').textContent = String(withDo);
 }
 
 function renderTimeline(report) {
@@ -205,7 +215,7 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
 
   if (loading) {
     if (filterChange) {
-      state.selectedAntiId = null;
+      state.selectedPatternId = null;
       closePatternDrill();
     }
     overlay?.classList.add('is-visible');
@@ -229,15 +239,16 @@ function formatSlackUser(slackId) {
   return id.startsWith('U') ? `@${id.slice(0, 3)}…${id.slice(-4)}` : id;
 }
 
-function renderPatternDrill(antiId) {
+function renderPatternDrill(patternId) {
   const report = state.freqReport;
-  const item = report?.anti_items?.find((i) => i.id === antiId);
+  const items = ledgerItems(report);
+  const item = items.find((i) => i.id === patternId);
   const drill = $('patternDrill');
   const body = $('patternDrillBody');
   const flow = document.querySelector('.checklist-flow');
   if (!item || !drill || !body) return;
 
-  state.selectedAntiId = antiId;
+  state.selectedPatternId = patternId;
   drill.hidden = false;
   flow?.classList.add('has-drill');
 
@@ -284,18 +295,22 @@ function renderPatternDrill(antiId) {
     <p class="drill-rule">${escapeHtml(item.description || '')}</p>
     <div class="drill-action">
       <strong>Team action</strong>
-      Before the next reel: scan your retro Bad/Actions for this pattern and fix it in the edit or brief — ${occ.length} piece(s) flagged recently.
+      ${
+  state.ledgerMode === 'do'
+    ? `Repeat what worked: ${occ.length} piece(s) recently matched this Do item (see Good lines).`
+    : `Before the next reel: scan Bad/Actions for this anti-pattern — ${occ.length} piece(s) flagged recently.`
+}
     </div>
     <p class="flow-hint">${occ.length} piece(s) · click another row to switch</p>
     ${occurrencesHtml}`;
 
   document.querySelectorAll('.pattern-row').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.antiId === antiId);
+    btn.classList.toggle('is-active', btn.dataset.patternId === patternId);
   });
 }
 
 function closePatternDrill() {
-  state.selectedAntiId = null;
+  state.selectedPatternId = null;
   $('patternDrill').hidden = true;
   document.querySelector('.checklist-flow')?.classList.remove('has-drill');
   document.querySelectorAll('.pattern-row').forEach((btn) => btn.classList.remove('is-active'));
@@ -304,6 +319,7 @@ function closePatternDrill() {
 function renderChecklistFrequency(report) {
   const el = $('checklistFrequency');
   const metaEl = $('freqMeta');
+  const titleEl = $('ledgerTitle');
   if (!el) return;
   state.freqReport = report;
   renderChecklistKpis(report || {});
@@ -312,26 +328,31 @@ function renderChecklistFrequency(report) {
   const periodName = { week: 'Weekly', month: 'Monthly', year: 'Annual' }[granularity] || 'Monthly';
   const scoped = report?.scoped_count ?? report?.retro_count ?? 0;
   const analyzed = report?.analyzed_count ?? scoped;
-  const hits = (report?.anti_items || []).filter((item) => item.total_retros > 0);
+  const hits = ledgerItems(report).filter((item) => item.total_retros > 0);
+  const ledgerLabel = state.ledgerMode === 'do' ? 'Do (C)' : 'Anti (A)';
 
+  if (titleEl) {
+    titleEl.textContent = state.ledgerMode === 'do' ? 'Do checklist ledger' : 'Anti-pattern ledger';
+  }
   if (metaEl) {
-    metaEl.textContent = `${periodName} · ${analyzed} analyzed of ${scoped} in scope · click a row for retro quotes`;
+    metaEl.textContent = `${ledgerLabel} · ${periodName} · ${analyzed} analyzed of ${scoped} · click a row for matched lines`;
   }
 
   renderTimeline(report);
 
   if (!hits.length) {
-    el.innerHTML = '<p class="muted">No anti-pattern hits in this scope yet.</p>';
+    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits in this scope yet. LLM reads Good for Do items and Bad for Anti.</p>`;
     closePatternDrill();
     return;
   }
 
   const maxPieces = Math.max(...hits.map((h) => h.total_retros), 1);
+  const rowClass = state.ledgerMode === 'do' ? 'pattern-row pattern-row-do' : 'pattern-row';
   el.innerHTML = hits.map((item) => {
     const pct = Math.round((item.total_retros / maxPieces) * 100);
-    const active = state.selectedAntiId === item.id ? ' is-active' : '';
+    const active = state.selectedPatternId === item.id ? ' is-active' : '';
     return `
-      <button type="button" class="pattern-row${active}" data-anti-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}">
+      <button type="button" class="${rowClass}${active}" data-pattern-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}">
         <div>
           <div class="pattern-label">${escapeHtml(item.label)}</div>
           <div class="pattern-meter">
@@ -343,11 +364,11 @@ function renderChecklistFrequency(report) {
   }).join('');
 
   el.querySelectorAll('.pattern-row').forEach((btn) => {
-    btn.addEventListener('click', () => renderPatternDrill(btn.dataset.antiId));
+    btn.addEventListener('click', () => renderPatternDrill(btn.dataset.patternId));
   });
 
-  if (state.selectedAntiId && hits.some((h) => h.id === state.selectedAntiId)) {
-    renderPatternDrill(state.selectedAntiId);
+  if (state.selectedPatternId && hits.some((h) => h.id === state.selectedPatternId)) {
+    renderPatternDrill(state.selectedPatternId);
   } else {
     closePatternDrill();
   }
@@ -413,7 +434,7 @@ function showChecklistIdleState() {
     el.innerHTML = '<p class="idle-hint muted">No checklist frequency loaded yet.</p>';
   }
   if ($('checklistTimeline')) $('checklistTimeline').innerHTML = '';
-  ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti'].forEach((id) => {
+  ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti', 'kpiWithDo'].forEach((id) => {
     if ($(id)) $(id).textContent = '0';
   });
   state.freqReport = null;
@@ -732,6 +753,12 @@ function markChecklistFiltersDirty() {
 $('checklistIpFilter')?.addEventListener('change', markChecklistFiltersDirty);
 $('checklistPeriod')?.addEventListener('change', markChecklistFiltersDirty);
 $('checklistPlatformScope')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistLedgerMode')?.addEventListener('change', () => {
+  state.ledgerMode = $('checklistLedgerMode')?.value === 'do' ? 'do' : 'anti';
+  state.selectedPatternId = null;
+  if (state.freqReport) renderChecklistFrequency(state.freqReport);
+  else showChecklistIdleState();
+});
 $('runChecklistBtn')?.addEventListener('click', () => {
   refreshChecklistFrequency({ filterChange: true }).catch(() => {});
 });

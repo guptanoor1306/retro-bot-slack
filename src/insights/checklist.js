@@ -126,6 +126,63 @@ function periodBucket(isoDate, period) {
   return d.slice(0, 7);
 }
 
+function ensurePatternHitStore(store, pattern) {
+  if (!store.has(pattern.id)) {
+    store.set(pattern.id, {
+      id: pattern.id,
+      label: pattern.label,
+      retro_ids: new Set(),
+      buckets: new Map(),
+      occurrences: [],
+    });
+  }
+  return store.get(pattern.id);
+}
+
+function appendPatternOccurrence(hit, pattern, retro, bucket, responses) {
+  const evidence = pattern.evidence || '';
+  hit.retro_ids.add(retro.retro_id);
+  hit.buckets.set(bucket, (hit.buckets.get(bucket) || 0) + 1);
+  hit.occurrences.push({
+    retro_id: retro.retro_id,
+    video_name: retro.video_name,
+    ip_name: retro.ip_name,
+    platform: getRetroPlatform(retro) || 'youtube',
+    social_platform: retro.social_platform || '',
+    date: retroDateKey(retro.completed_at || retro.release_date),
+    bucket,
+    evidence,
+    confidence: pattern.confidence || '',
+    post_link: String(retro.link || '').trim(),
+    slack_thread_link: slackThreadPermalink(retro.channel_id, retro.thread_ts),
+    contributors: responseContributors(responses),
+    attributed_to: attributeEvidence(evidence, responses),
+  });
+}
+
+function rollupPatternItems(defItems, hitStore, metaById) {
+  return (defItems || [])
+    .map((item) => {
+      const hit = hitStore.get(item.id);
+      const byPeriod = {};
+      if (hit) {
+        for (const [bucket, count] of hit.buckets.entries()) {
+          byPeriod[bucket] = count;
+        }
+      }
+      const meta = metaById.get(item.id) || item;
+      return {
+        id: item.id,
+        label: item.label,
+        description: meta.description || '',
+        total_retros: hit ? hit.retro_ids.size : 0,
+        by_period: byPeriod,
+        occurrences: hit?.occurrences || [],
+      };
+    })
+    .sort((a, b) => b.total_retros - a.total_retros);
+}
+
 async function buildAntiFrequencyReportAsync({
   period = 'month',
   ip = '',
@@ -146,8 +203,10 @@ async function buildAntiFrequencyReportAsync({
     scoped = scoped.filter((r) => (getRetroPlatform(r) || 'youtube') === platform);
   }
 
-  const counts = new Map();
-  const retroHits = new Map();
+  const antiCounts = new Map();
+  const checkCounts = new Map();
+  const antiHits = new Map();
+  const checkHits = new Map();
   const bucketRetroIds = new Map();
 
   const scopedTotal = scoped.length;
@@ -162,77 +221,50 @@ async function buildAntiFrequencyReportAsync({
   }
 
   const retrosWithAnti = new Set();
+  const retrosWithDo = new Set();
 
   for (const retro of scoped) {
     const bucket = periodBucket(retro.completed_at || retro.release_date, period);
     if (!bucket) continue;
-    const analysis = await analyzeRetroChecklistAsync({
-      retro,
-      responses: responsesByRetro.get(retro.retro_id) || [],
-    });
-    if (!analysis.applies || !analysis.antiChecks.length) continue;
+    const responses = responsesByRetro.get(retro.retro_id) || [];
+    const analysis = await analyzeRetroChecklistAsync({ retro, responses });
+    if (!analysis.applies) continue;
 
-    retrosWithAnti.add(retro.retro_id);
+    const hasAnti = analysis.antiChecks?.length > 0;
+    const hasDo = analysis.checks?.length > 0;
+    if (!hasAnti && !hasDo) continue;
+
     if (!bucketRetroIds.has(bucket)) bucketRetroIds.set(bucket, new Set());
     bucketRetroIds.get(bucket).add(retro.retro_id);
+    if (hasAnti) retrosWithAnti.add(retro.retro_id);
+    if (hasDo) retrosWithDo.add(retro.retro_id);
 
-    for (const anti of analysis.antiChecks) {
+    for (const check of analysis.checks || []) {
+      const key = `${bucket}::${check.id}`;
+      checkCounts.set(key, (checkCounts.get(key) || 0) + 1);
+      const hit = ensurePatternHitStore(checkHits, check);
+      appendPatternOccurrence(hit, check, retro, bucket, responses);
+    }
+
+    for (const anti of analysis.antiChecks || []) {
       const key = `${bucket}::${anti.id}`;
-      counts.set(key, (counts.get(key) || 0) + 1);
-      if (!retroHits.has(anti.id)) {
-        retroHits.set(anti.id, {
-          id: anti.id,
-          label: anti.label,
-          retro_ids: new Set(),
-          buckets: new Map(),
-          occurrences: [],
-        });
-      }
-      const hit = retroHits.get(anti.id);
-      hit.retro_ids.add(retro.retro_id);
-      hit.buckets.set(bucket, (hit.buckets.get(bucket) || 0) + 1);
-      const responses = responsesByRetro.get(retro.retro_id) || [];
-      const evidence = anti.evidence || '';
-      hit.occurrences.push({
-        retro_id: retro.retro_id,
-        video_name: retro.video_name,
-        ip_name: retro.ip_name,
-        platform: getRetroPlatform(retro) || 'youtube',
-        social_platform: retro.social_platform || '',
-        date: retroDateKey(retro.completed_at || retro.release_date),
-        bucket,
-        evidence,
-        confidence: anti.confidence || '',
-        post_link: String(retro.link || '').trim(),
-        slack_thread_link: slackThreadPermalink(retro.channel_id, retro.thread_ts),
-        contributors: responseContributors(responses),
-        attributed_to: attributeEvidence(evidence, responses),
-      });
+      antiCounts.set(key, (antiCounts.get(key) || 0) + 1);
+      const hit = ensurePatternHitStore(antiHits, anti);
+      appendPatternOccurrence(hit, anti, retro, bucket, responses);
     }
   }
 
+  const checkById = new Map((def.checks || []).map((i) => [i.id, i]));
   const antiById = new Map((def.antiChecks || []).map((i) => [i.id, i]));
 
-  const antiItems = (def.antiChecks || []).map((item) => {
-    const hit = retroHits.get(item.id);
-    const byPeriod = {};
-    if (hit) {
-      for (const [bucket, count] of hit.buckets.entries()) {
-        byPeriod[bucket] = count;
-      }
-    }
-    const meta = antiById.get(item.id) || item;
-    return {
-      id: item.id,
-      label: item.label,
-      description: meta.description || '',
-      total_retros: hit ? hit.retro_ids.size : 0,
-      by_period: byPeriod,
-      occurrences: hit?.occurrences || [],
-    };
-  }).sort((a, b) => b.total_retros - a.total_retros);
+  const checkItems = rollupPatternItems(def.checks, checkHits, checkById);
+  const antiItems = rollupPatternItems(def.antiChecks, antiHits, antiById);
 
-  const periods = [...new Set([...counts.keys()].map((k) => k.split('::')[0]))].sort();
+  const periods = [
+    ...new Set([
+      ...[...antiCounts.keys(), ...checkCounts.keys()].map((k) => k.split('::')[0]),
+    ]),
+  ].sort();
 
   const periodTotals = {};
   for (const p of periods) {
@@ -245,9 +277,11 @@ async function buildAntiFrequencyReportAsync({
     scoped_count: scopedTotal,
     analyzed_count: scoped.length,
     retros_with_anti: retrosWithAnti.size,
+    retros_with_do: retrosWithDo.size,
     retro_count: scopedTotal,
     period_totals: periodTotals,
     periods,
+    check_items: checkItems,
     anti_items: antiItems,
     checks: def.checks,
     anti_checks: def.antiChecks,

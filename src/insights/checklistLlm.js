@@ -75,8 +75,9 @@ ${retroText.slice(0, 12000)}
 Rules:
 - Match only when the retro clearly supports the item (paraphrases and Hinglish OK).
 - Do NOT guess. Skip items with weak support.
-- "checks" = positive things the team says went well and align with the Do list.
-- "antiChecks" = problems / failures that align with the Anti list.
+- "checks" = positives in Good (or clear success in Bad/Actions) that align with the Do list (C items).
+- "antiChecks" = problems / failures that align with the Anti list (A items).
+- Prefer Good text for checks; one retro may match multiple C and A items when supported.
 - evidence must be a short quote or tight paraphrase from the retro text.
 
 Return JSON only:
