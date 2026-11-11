@@ -11,6 +11,7 @@ const state = {
   ledgerMode: 'anti',
   freqLoading: false,
   freqRequestId: 0,
+  focusPeriod: '',
 };
 
 const SOCIAL_TYPE_OPTIONS = {
@@ -131,14 +132,83 @@ function periodLabel(periodKey, granularity) {
   return periodKey;
 }
 
+function retrosInChecklistScope() {
+  const platform = $('checklistPlatformScope')?.value || '';
+  return state.retros.filter((r) => {
+    if (r.status !== 'complete') return false;
+    const p = r.platform || 'youtube';
+    if (platform && p !== platform) return false;
+    return true;
+  });
+}
+
 function fillChecklistIpFilter() {
   const el = $('checklistIpFilter');
   if (!el) return;
   const prev = el.value;
-  const ips = [...new Set(state.retros.map((r) => r.ip_name).filter(Boolean))].sort();
+  const ips = [...new Set(retrosInChecklistScope().map((r) => r.ip_name).filter(Boolean))].sort();
   el.innerHTML = '<option value="">All IPs</option>'
     + ips.map((ip) => `<option value="${escapeHtml(ip)}">${escapeHtml(ip)}</option>`).join('');
   if (prev && ips.includes(prev)) el.value = prev;
+  else if (prev && !ips.includes(prev)) el.value = '';
+}
+
+function itemRetroCount(item, focusPeriod) {
+  if (!focusPeriod) return item.total_retros;
+  const ids = new Set();
+  for (const o of item.occurrences || []) {
+    if (o.bucket === focusPeriod && o.retro_id) ids.add(o.retro_id);
+  }
+  return ids.size;
+}
+
+function syncFocusPeriodOptions(report) {
+  const el = $('checklistFocusPeriod');
+  const field = $('checklistFocusPeriodField');
+  const periods = report?.periods || [];
+  if (!el || !field) return;
+  if (!periods.length) {
+    field.hidden = true;
+    state.focusPeriod = '';
+    return;
+  }
+  field.hidden = false;
+  const prev = state.focusPeriod || el.value;
+  el.innerHTML =
+    '<option value="">All periods</option>'
+    + periods
+      .map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(periodLabel(p, report.period))}</option>`)
+      .join('');
+  const latest = periods[periods.length - 1];
+  if (prev && periods.includes(prev)) {
+    el.value = prev;
+    state.focusPeriod = prev;
+  } else {
+    el.value = latest;
+    state.focusPeriod = latest;
+  }
+}
+
+function focusPeriodLabel(report) {
+  const key = state.focusPeriod;
+  if (!key) return 'all periods';
+  return periodLabel(key, report?.period || 'month');
+}
+
+async function refreshPerformanceOnly() {
+  try {
+    const platform = $('checklistPlatformScope')?.value || '';
+    const ip = checklistIpForScope();
+    const perfQs = new URLSearchParams();
+    if (platform) perfQs.set('platform', platform);
+    if (ip) perfQs.set('ip', ip);
+    const res = await fetch(`/api/checklist/performance?${perfQs}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    renderPerformanceSpotlight(data);
+  } catch {
+    /* keep prior spotlight on quick refresh failure */
+  }
 }
 
 function checklistIpForScope() {
@@ -216,6 +286,7 @@ function setFreqLoading(loading, { filterChange = false } = {}) {
   if (loading) {
     if (filterChange) {
       state.selectedPatternId = null;
+      state.focusPeriod = '';
       closePatternDrill();
     }
     overlay?.classList.add('is-visible');
@@ -252,7 +323,10 @@ function renderPatternDrill(patternId) {
   drill.hidden = false;
   flow?.classList.add('has-drill');
 
-  const occ = item.occurrences || [];
+  let occ = item.occurrences || [];
+  if (state.focusPeriod) {
+    occ = occ.filter((o) => o.bucket === state.focusPeriod);
+  }
   const occurrencesHtml = occ.length
     ? occ.map((o) => {
         const links = [];
@@ -322,34 +396,39 @@ function renderChecklistFrequency(report) {
   const titleEl = $('ledgerTitle');
   if (!el) return;
   state.freqReport = report;
+  syncFocusPeriodOptions(report);
   renderChecklistKpis(report || {});
 
   const granularity = report?.period || 'month';
   const periodName = { week: 'Weekly', month: 'Monthly', year: 'Annual' }[granularity] || 'Monthly';
   const scoped = report?.scoped_count ?? report?.retro_count ?? 0;
   const analyzed = report?.analyzed_count ?? scoped;
-  const hits = ledgerItems(report).filter((item) => item.total_retros > 0);
   const ledgerLabel = state.ledgerMode === 'do' ? 'Do (C)' : 'Anti (A)';
+  const focus = state.focusPeriod;
+  const withCount = ledgerItems(report)
+    .map((item) => ({ item, count: itemRetroCount(item, focus) }))
+    .filter((row) => row.count > 0);
+  const hits = withCount.map((row) => row.item);
 
   if (titleEl) {
     titleEl.textContent = state.ledgerMode === 'do' ? 'Do checklist ledger' : 'Anti-pattern ledger';
   }
   if (metaEl) {
-    metaEl.textContent = `${ledgerLabel} · ${periodName} · ${analyzed} analyzed of ${scoped} · click a row for matched lines`;
+    metaEl.textContent = `${ledgerLabel} · ${periodName} · counts in ${focusPeriodLabel(report)} · ${analyzed} analyzed of ${scoped} · click a row for matched lines`;
   }
 
   renderTimeline(report);
 
   if (!hits.length) {
-    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits in this scope yet. LLM reads Good for Do items and Bad for Anti.</p>`;
+    el.innerHTML = `<p class="muted">No ${ledgerLabel} hits for ${escapeHtml(focusPeriodLabel(report))} in this scope. Try “All periods” or change filters and Run analysis.</p>`;
     closePatternDrill();
     return;
   }
 
-  const maxPieces = Math.max(...hits.map((h) => h.total_retros), 1);
+  const maxPieces = Math.max(...withCount.map((r) => r.count), 1);
   const rowClass = state.ledgerMode === 'do' ? 'pattern-row pattern-row-do' : 'pattern-row';
-  el.innerHTML = hits.map((item) => {
-    const pct = Math.round((item.total_retros / maxPieces) * 100);
+  el.innerHTML = withCount.map(({ item, count }) => {
+    const pct = Math.round((count / maxPieces) * 100);
     const active = state.selectedPatternId === item.id ? ' is-active' : '';
     return `
       <button type="button" class="${rowClass}${active}" data-pattern-id="${escapeHtml(item.id)}" title="${escapeHtml(item.label)}">
@@ -359,7 +438,7 @@ function renderChecklistFrequency(report) {
             <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
           </div>
         </div>
-        <div class="pattern-count">${item.total_retros}<small>pieces</small></div>
+        <div class="pattern-count">${count}<small>pieces</small></div>
       </button>`;
   }).join('');
 
@@ -479,6 +558,7 @@ async function refreshChecklistFrequency({ filterChange = false } = {}) {
     const report = await res.json();
     if (reqId !== state.freqRequestId) return;
     if (!res.ok) throw new Error(report.error);
+    $('checklistFlow')?.classList.remove('is-stale');
     renderChecklistFrequency(report);
   } catch (e) {
     if (reqId === state.freqRequestId) {
@@ -816,14 +896,31 @@ $('socialPlatformFilter')?.addEventListener('change', () => {
 });
 $('socialIpFilter')?.addEventListener('change', () => fillSocialRetroSelects());
 function markChecklistFiltersDirty() {
-  if (state.freqReport && $('freqMeta')) {
-    $('freqMeta').textContent = 'Filters changed — click Run analysis to refresh.';
+  if (!state.freqReport) return;
+  ['kpiScoped', 'kpiAnalyzed', 'kpiWithAnti', 'kpiWithDo'].forEach((id) => {
+    if ($(id)) $(id).textContent = '—';
+  });
+  if ($('freqMeta')) {
+    $('freqMeta').textContent = 'Filters changed — click Run analysis to refresh the ledger (Platform/IP need a new LLM run).';
   }
+  $('checklistFlow')?.classList.add('is-stale');
 }
 
-$('checklistIpFilter')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistIpFilter')?.addEventListener('change', () => {
+  markChecklistFiltersDirty();
+  refreshPerformanceOnly();
+});
 $('checklistPeriod')?.addEventListener('change', markChecklistFiltersDirty);
-$('checklistPlatformScope')?.addEventListener('change', markChecklistFiltersDirty);
+$('checklistPlatformScope')?.addEventListener('change', () => {
+  fillChecklistIpFilter();
+  markChecklistFiltersDirty();
+  refreshPerformanceOnly();
+});
+$('checklistFocusPeriod')?.addEventListener('change', () => {
+  state.focusPeriod = $('checklistFocusPeriod')?.value || '';
+  state.selectedPatternId = null;
+  if (state.freqReport) renderChecklistFrequency(state.freqReport);
+});
 $('checklistLedgerMode')?.addEventListener('change', () => {
   state.ledgerMode = $('checklistLedgerMode')?.value === 'do' ? 'do' : 'anti';
   state.selectedPatternId = null;
